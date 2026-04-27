@@ -28,8 +28,8 @@ class MLDataLoader(BaseDataLoader):
         """
         self.device = get_device(device)
         self.task = task.lower()
-        self.graph_user = torch.load(data_dir + 'graph_user.pth')
-        self.graph_item = torch.load(data_dir + 'graph_item.pth')
+        self.graph_user = torch.load(data_dir + 'graph_user.pth', weights_only=False)
+        self.graph_item = torch.load(data_dir + 'graph_item.pth', weights_only=False)
         self.user_num = user_num
         self.item_num = item_num
         self.embedding_dim_modal = embedding_dim_modal
@@ -75,7 +75,7 @@ class MLDataLoader(BaseDataLoader):
                     self.ratings_training['item'].extend(neg_items[:-100] + self.graph_user[user].tolist())
                     self.ratings_training['label'].extend([0.0 for _ in range(len(neg_items[:-100]))] + [1.0 for _ in range(len(self.graph_user[user]))])
             else:
-                ratings_dict = torch.load(data_dir + 'ratings_fl.pth')
+                ratings_dict = torch.load(data_dir + 'ratings_fl.pth', weights_only=False)
                 for user in ratings_dict.keys():
                     test_num = round(len(ratings_dict[user]) * 0.2)
                     self.graph_user[user] = self.graph_user[user][:-test_num]
@@ -98,14 +98,14 @@ class MLDataLoader(BaseDataLoader):
 
         if not only_inter:
             self.item_dict = dict()
-            item_attr = torch.load(data_dir + 'items.pth', map_location=self.device)
+            item_attr = torch.load(data_dir + 'items.pth', map_location=self.device, weights_only=False)
             for item in item_attr.keys():
                 attrs = item_attr[item]    
                 temp = torch.cat([attrs['Title']] + attrs['Genres'], dim=0).detach()
                 self.item_dict[item] = [temp.to(torch.float32).to(self.device)]
                 del attrs['Title'], attrs['Genres'], attrs, temp
             self.user_dict = dict()
-            user_attr = torch.load(data_dir + 'users.pth', map_location=self.device)
+            user_attr = torch.load(data_dir + 'users.pth', map_location=self.device, weights_only=False)
             for user in user_attr.keys():
                 attrs = user_attr[user]       
                 self.user_dict[user] = [torch.cat([attrs['Gender'],attrs['Age'],attrs['Occupation']], dim=0).to(torch.float32).to(self.device)]
@@ -168,8 +168,8 @@ class MLDataLoaderFL(BaseDataLoaderFL):
         """
         self.device = get_device(device)
         self.task = task.lower()
-        self.graph_user = torch.load(data_dir + 'graph_user.pth')
-        self.graph_item = torch.load(data_dir + 'graph_item.pth')
+        self.graph_user = torch.load(data_dir + 'graph_user.pth', weights_only=False)
+        self.graph_item = torch.load(data_dir + 'graph_item.pth', weights_only=False)
         self.user_num = user_num
         self.item_num = item_num
 
@@ -214,7 +214,7 @@ class MLDataLoaderFL(BaseDataLoaderFL):
                     self.ratings_training[user]['item']= torch.tensor(neg_items[:-100] + self.graph_user[user].tolist(), dtype=torch.int64, device=self.device)
                     self.ratings_training[user]['label']= torch.tensor([0.0 for _ in range(len(neg_items[:-100]))] + [1.0 for _ in range(len(self.graph_user[user]))], dtype=torch.float32, device=self.device)
             else:
-                ratings_dict = torch.load(data_dir + 'ratings_fl.pth')
+                ratings_dict = torch.load(data_dir + 'ratings_fl.pth', weights_only=False)
                 for user in ratings_dict.keys():
                     test_num = round(len(ratings_dict[user]) * 0.2)
                     self.ratings_training[user] = {}
@@ -232,8 +232,8 @@ class MLDataLoaderFL(BaseDataLoaderFL):
                                       shape=(user_num, item_num))
         
         if not only_inter:
-            self.item_dict = torch.load(data_dir + 'items.pth', map_location=self.device)
-            self.user_dict = torch.load(data_dir + 'users.pth', map_location=self.device)
+            self.item_dict = torch.load(data_dir + 'items.pth', map_location=self.device, weights_only=False)
+            self.user_dict = torch.load(data_dir + 'users.pth', map_location=self.device, weights_only=False)
 
     def get_user_topo(self, user):
         return torch.tensor(self.graph_user[user], dtype=torch.int64, device=self.device)
@@ -258,4 +258,4 @@ class MLDataLoaderFL(BaseDataLoaderFL):
     
     def get_aj_graph(self):
         return self.aj_graph
-    
+
