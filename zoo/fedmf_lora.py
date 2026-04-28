@@ -304,6 +304,8 @@ class FedMF_Lora:
         self.local_epoch =  local_epoch
         self.train_turn = train_turn
         self.user_num = user_num
+        self.latent_dim = latent_dim
+        self.model_dir = kwargs.get("model_dir", "./checkpoints/")
         self.task = task.lower()
         self.device = device
         self.dataload = dataload
@@ -337,7 +339,12 @@ class FedMF_Lora:
             self.server.aggregation(select_users, client_model, client_local_data_num, losses,)
             torch.cuda.empty_cache()
 
+        import os
+        os.makedirs(self.model_dir, exist_ok=True)
+        ckpt_path = os.path.join(self.model_dir, 'server_model_latent_dim_{}.pth'.format(self.latent_dim))
+        torch.save(self.server.model.state_dict(), ckpt_path)
+        logging.info("Checkpoint saved to {}".format(ckpt_path))
+
         logging.info("********* Test *********")
         results = self.server.evaluate(self.dataload, range(self.user_num))
         return results
-    
