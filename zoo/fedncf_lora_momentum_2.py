@@ -468,7 +468,7 @@ class FedNCF_Lora_Momentum_2:
                 logging.info("*** Phase 2 START: B warmup (train A + B) ***")
             if turn == self.ae_warmup_turns + self.warmup_B_turns:
                 logging.info("*** Phase 3 START: Freeze B, train A only — resetting v_A ***")
-                self.server.v_A.zero_()  # reset momentum: B subspace changed, old A momentum unreliable
+                self.server.v_A.zero_()
 
             phase_label = "phase1_AE" if is_pretrain else ("phase2_B_warmup" if is_warmup_B else "phase3_freeze_B")
             logging.info("********* Train Turn {} [{}] *********".format(turn, phase_label))
@@ -495,6 +495,11 @@ class FedNCF_Lora_Momentum_2:
             )
             torch.cuda.empty_cache()
 
-        logging.info("********* Test *********")
+            # ---- evaluate every 10 rounds ----
+            if (turn + 1) % 10 == 0:
+                logging.info("********* Eval @ Turn {} *********".format(turn))
+                self.server.evaluate(self.dataload, range(self.user_num))
+
+        logging.info("********* Final Test *********")
         results = self.server.evaluate(self.dataload, range(self.user_num))
         return results

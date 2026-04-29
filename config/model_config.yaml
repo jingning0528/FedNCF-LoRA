@@ -35,8 +35,8 @@ FedNCF_ml1m_triple_101_momentum_2:
     # **LoRA + Momentum + 3-phase**
     model: FedNCF_Lora_Momentum_2
     latent_dim: 4       # rank r, try 2 for more compression
-    beta: 0.5           # momentum coefficient
-    eta_s: 0.1          # server learning rate
+    beta: 0.9           # momentum coefficient
+    eta_s: 1.0          # server learning rate
     warmup_B_turns: 20  # Phase 2: train A+B for 10 turns after AE warmup (turns 20-29)
                         # Phase 1: AE warmup   turns 0-19  (embedding_p only)
                         # Phase 2: B warmup    turns 20-29 (A + B + MLP)
@@ -79,8 +79,8 @@ FedNCF_ml1m_triple_101_momentum:
     # **LoRA + Momentum**
     model: FedNCF_Lora_Momentum
     latent_dim: 4       # rank r, try 2 for more compression
-    beta: 0.5           # momentum coefficient
-    eta_s: 0.1          # server learning rate
+    beta: 0.9           # momentum coefficient
+    eta_s: 1.0          # server learning rate
     # **RQ-VAE**
     # model: FedMF_RPQ
     # mc_size: 128
