@@ -12,3 +12,5 @@ from .fedpergnn_hash import FedPerGNN_Hash
 from .pfedrec_lora import PFedRec_Lora
 from .pfedrec_rpq import PFedRec_RPQ
 from .pfedrec_hash import PFedRec_Hash
+
+from .fedncf_lora_momentum import FedNCF_Lora_Momentum

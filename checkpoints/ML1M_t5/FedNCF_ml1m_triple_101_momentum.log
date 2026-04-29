@@ -1,0 +1,48 @@
+2026-04-29 08:56:21,006 P25408 INFO Params: {
+    "beta": "0.9",
+    "clients_num_per_turn": "604",
+    "data_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/",
+    "dataloader": "MLDataLoaderFL",
+    "dataset_id": "ML1M_t5",
+    "device": "-1",
+    "dropout": "0.5",
+    "embedding_dim": "32",
+    "embedding_regularizer": "1e-08",
+    "eta_s": "1.0",
+    "g_hidden_activations": "ReLU",
+    "g_hidden_units": "[512, 256, 128]",
+    "hidden_activations": "ReLU",
+    "hidden_units": "[64, 128, 64]",
+    "item_num": "3952",
+    "latent_dim": "4",
+    "learning_rate": "0.001",
+    "local_epoch": "2",
+    "loss_fn": "bpr_loss",
+    "metrics": "['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']",
+    "model": "FedNCF_Lora_Momentum",
+    "model_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/",
+    "model_id": "FedNCF_ml1m_triple_101_momentum",
+    "net_regularizer": "1e-08",
+    "only_inter": "False",
+    "optimizer": "adam",
+    "output_dim": "1",
+    "path": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/",
+    "pre_epoch": "3000",
+    "seed": "2024",
+    "sen_embedding_dim": "768",
+    "task": "triple",
+    "train_turn": "1000",
+    "user_num": "6040"
+}
+2026-04-29 08:56:25,828 P25408 INFO Model embedding_item.emb.weight size: 0.06030273MB
+2026-04-29 08:56:25,829 P25408 INFO Model embedding_item.linear.weight size: 0.00048828MB
+2026-04-29 08:56:25,829 P25408 INFO Model embedding_p.weight size: 0.48242188MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.0.weight size: 0.01562500MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.0.bias size: 0.00024414MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.3.weight size: 0.03125000MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.3.bias size: 0.00048828MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.6.weight size: 0.03125000MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.6.bias size: 0.00024414MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.9.weight size: 0.00024414MB
+2026-04-29 08:56:25,829 P25408 INFO Model mlp.mlp.9.bias size: 0.00000381MB
+2026-04-29 08:56:25,830 P25408 INFO Model all size: 0.62256241MB
