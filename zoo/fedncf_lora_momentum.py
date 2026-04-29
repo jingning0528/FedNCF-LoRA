@@ -130,7 +130,7 @@ class model(BaseModel):
         self.train()
         # freeze B (shared linear), only train A (emb)
         self.embedding_item.linear.weight.requires_grad_(False)
-        self.embedding_p.requires_grad_ = False
+        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
@@ -148,7 +148,7 @@ class model(BaseModel):
 
     def train_step_triple_c(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.requires_grad_ = False
+        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
         self.optimizer.zero_grad()
         pred_pos = self.forward_c(users, pos)
         pred_neg = self.forward_c(users, neg)
@@ -165,7 +165,7 @@ class model(BaseModel):
     
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.requires_grad_ = True
+        self.embedding_p.weight.requires_grad_(True)   # ✅ fixed
         self.optimizer.zero_grad()
         pred_pos = self.forward_pre(users, pos)
         pred_neg = self.forward_pre(users, neg)
@@ -225,8 +225,8 @@ class Client(ClientBase):
             users, items, labels = dataload.get_traindata(user)
             self.__local_data_num = labels.size(0)
             for _ in range(local_epoch):
-                if self.fedop == "fedprox":
-                    loss = self.model.train_step(users, pos, neg, self.global_model)
+                if self.fedop == "fedprox":  # ✅ was self.fedprox (AttributeError)
+                    loss = self.model.train_step(users, items, labels, self.global_model)
                 else:
                     loss = self.model.train_step(users, items, labels)
         # logging.info("Client {} for user {}, train loss: {:.6f}".format(self.client_id, user, loss))
@@ -287,9 +287,11 @@ class Server(ServerBase):
                 # ===== Shared-B LoRA + Momentum Aggregation for A =====
                 # step 1: weighted average of A_u
                 A_bar = sum([m[name] * num for m, num in zip(model_list, num_list)]) / data_num
-                # step 2: momentum update  v_A^t = beta * v_A^{t-1} + A_bar^t
-                self.v_A = self.beta * self.v_A.to(A_bar.device) + A_bar
-                # step 3: A^{t+1} = A^t + eta_s * v_A^t
+                # step 2: compute delta (change from current A)
+                delta_A = A_bar - base_model_dict[name]
+                # step 3: momentum update on delta  v_A^t = beta * v_A^{t-1} + delta_A^t
+                self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
+                # step 4: A^{t+1} = A^t + eta_s * v_A^t
                 base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
                 # ========================================================
 
@@ -373,7 +375,11 @@ class FedNCF_Lora_Momentum:
             metrics=metrics,
         )
         server_model.reset_parameters()
-        self.server = Server(server_model)
+        self.server = Server(
+            server_model,
+            beta=float(kwargs.get("beta", 0.9)),
+            eta_s=float(kwargs.get("eta_s", 1.0))
+        )
         self.client = Client(client_id=0, model=model(
             user_num=user_num,
             item_num=item_num,
