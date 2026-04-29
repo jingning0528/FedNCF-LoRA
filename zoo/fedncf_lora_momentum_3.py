@@ -206,7 +206,9 @@ class model(BaseModel):
 
     def compile(self, optimizer, loss, lr):
         """Override compile to use separate LR for A and ΔB."""
-        self.loss_fn = self.get_loss(loss)
+        # Let BaseModel handle loss_fn initialization
+        super().compile(optimizer=optimizer, loss=loss, lr=lr)
+        # Now override optimizer with per-param-group LR
         if optimizer.lower() == "adam":
             self.optimizer = torch.optim.Adam([
                 {"params": self.embedding_user.parameters(),       "lr": lr},
@@ -224,8 +226,7 @@ class model(BaseModel):
                 {"params": self.embedding_p.parameters(),          "lr": lr},
                 {"params": self.mlp.parameters(),                  "lr": lr},
             ])
-        else:
-            raise ValueError("Unsupported optimizer: {}".format(optimizer))
+        # else: base class already raised or handled other optimizers
 
 
 class Client(ClientBase):
