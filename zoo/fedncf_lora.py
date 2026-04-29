@@ -405,7 +405,12 @@ class FedNCF_Lora:
             self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
             torch.cuda.empty_cache()
 
-        logging.info("********* Test *********")
+        # ---- evaluate every 10 rounds ----
+            if (turn + 1) % 10 == 0:
+                logging.info("********* Eval @ Turn {} *********".format(turn))
+                self.server.evaluate(self.dataload, range(self.user_num))
+
+        logging.info("********* Final Test *********")
         results = self.server.evaluate(self.dataload, range(self.user_num))
         return results
     
