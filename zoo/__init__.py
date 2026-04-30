@@ -16,3 +16,4 @@ from .pfedrec_hash import PFedRec_Hash
 from .fedncf_lora_momentum import FedNCF_Lora_Momentum
 from .fedncf_lora_momentum_2 import FedNCF_Lora_Momentum_2
 from .fedncf_lora_momentum_3 import FedNCF_Lora_Momentum_3
+from .fedncf_lora_momentum_4 import FedNCF_Lora_Momentum_4
