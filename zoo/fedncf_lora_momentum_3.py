@@ -54,8 +54,9 @@ class model(BaseModel):
         ]))
         # ΔB: small global correction  [embedding_dim × latent_dim]
         self.delta_B = nn.Linear(latent_dim, embedding_dim, bias=False)
-        self.delta_scale = float(kwargs.get("delta_scale", 0.1))  # constrain ΔB to be small
+        self.delta_scale = float(kwargs.get("delta_scale", 1.0))  # constrain ΔB to be small
         self.lambda_delta = float(kwargs.get("lambda_delta", 1e-4))  # ← add this
+        self.delta_B_lr           = float(kwargs.get("delta_B_lr", learning_rate))  # full lr
 
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
         self.embedding_p    = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
@@ -128,14 +129,14 @@ class model(BaseModel):
             self.optimizer.step()
         return loss
 
-    def train_step_triple(self, users, pos, neg, global_model=None):
+    def train_step_triple(self, users, pos, neg, global_model=None, update_delta_B=True):
         """
         Phase 2: B frozen, train A + ΔB + user_emb + MLP
         """
         self.train()
         self.embedding_item.linear.weight.requires_grad_(False)
         self.embedding_item.emb.weight.requires_grad_(True)
-        self.delta_B.weight.requires_grad_(True)
+        self.delta_B.weight.requires_grad_(update_delta_B)   # ← controlled
         self.embedding_p.weight.requires_grad_(False)
 
         self.optimizer.zero_grad()
@@ -155,11 +156,11 @@ class model(BaseModel):
             self.optimizer.step()
         return loss
 
-    def train_step_triple_c(self, users, pos, neg, global_model=None):
+    def train_step_triple_c(self, users, pos, neg, global_model=None, update_delta_B=True):
         self.train()
         self.embedding_item.linear.weight.requires_grad_(False)
         self.embedding_item.emb.weight.requires_grad_(True)
-        self.delta_B.weight.requires_grad_(True)
+        self.delta_B.weight.requires_grad_(update_delta_B)   # ← controlled
         self.embedding_p.weight.requires_grad_(False)
 
         self.optimizer.zero_grad()
@@ -209,14 +210,14 @@ class model(BaseModel):
         # Let BaseModel handle loss_fn initialization
         super().compile(optimizer=optimizer, loss=loss, lr=lr)
         # Now override optimizer with per-param-group LR
+        delta_B_lr = getattr(self, "delta_B_lr", lr)  # fallback to lr if not set yet
         if optimizer.lower() == "adam":
             self.optimizer = torch.optim.Adam([
                 {"params": self.embedding_user.parameters(),       "lr": lr},
-                {"params": self.embedding_item.emb.parameters(),   "lr": lr},        # A: full lr
-                {"params": self.delta_B.parameters(),              "lr": lr * 0.1},  # ΔB: 0.1x lr
+                {"params": self.embedding_item.emb.parameters(),   "lr": lr},
+                {"params": self.delta_B.parameters(),              "lr": delta_B_lr},  # configurable
                 {"params": self.embedding_p.parameters(),          "lr": lr},
                 {"params": self.mlp.parameters(),                  "lr": lr},
-                # embedding_item.linear (B) intentionally excluded — frozen forever
             ])
         elif optimizer.lower() == "sgd":
             self.optimizer = torch.optim.SGD([
@@ -243,19 +244,22 @@ class Client(ClientBase):
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
 
-    def upload_model(self):
+    def upload_model(self, update_delta_B=True):
         """
         Upload everything EXCEPT fixed B (embedding_item.linear).
-        - A (embedding_item.emb)  : per-client LoRA coeff
-        - ΔB (delta_B)            : global correction
-        - embedding_p             : needed for Phase 1 AE warmup aggregation
-        - mlp, embedding_user     : standard FedAvg params
+        Skip ΔB if not being updated this round (saves communication).
         """
         full_state = self.model.state_dict()
-        return {k: v.clone() for k, v in full_state.items()
-                if 'embedding_item.linear' not in k}   # exclude only fixed B
+        result = {}
+        for k, v in full_state.items():
+            if 'embedding_item.linear' in k:
+                continue                              # B: frozen forever, never upload
+            if 'delta_B' in k and not update_delta_B:
+                continue                              # ΔB: skip if not updating this round
+            result[k] = v.clone()
+        return result
 
-    def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
+    def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False, update_delta_B=True):
         self.model.train()
         if self.task == "triple":
             users, pos, neg = dataload.get_traindata(user)
@@ -263,18 +267,18 @@ class Client(ClientBase):
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
                     if compressed:
-                        loss = self.model.train_step_triple_c(users, pos, neg, self.global_model)
+                        loss = self.model.train_step_triple_c(users, pos, neg, self.global_model, update_delta_B)
                     elif pre_train:
                         loss = self.model.train_step_triple_pre(users, pos, neg, self.global_model)
                     else:
-                        loss = self.model.train_step_triple(users, pos, neg, self.global_model)
+                        loss = self.model.train_step_triple(users, pos, neg, self.global_model, update_delta_B)
                 else:
                     if compressed:
-                        loss = self.model.train_step_triple_c(users, pos, neg)
+                        loss = self.model.train_step_triple_c(users, pos, neg, update_delta_B=update_delta_B)
                     elif pre_train:
                         loss = self.model.train_step_triple_pre(users, pos, neg)
                     else:
-                        loss = self.model.train_step_triple(users, pos, neg)
+                        loss = self.model.train_step_triple(users, pos, neg, update_delta_B=update_delta_B)
         else:
             users, items, labels = dataload.get_traindata(user)
             self.__local_data_num = labels.size(0)
@@ -292,13 +296,14 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(self, model, beta=0.9, eta_s=1.0):
+    def __init__(self, model, beta=0.9, eta_s=1.0, delta_B_update_every=10):
         super().__init__(model)
         self.models       = {}
         self.global_model = self.model.embedding_p.state_dict()
         self.beta         = beta
         self.eta_s        = eta_s
-        # momentum velocity for A only
+        self.delta_B_update_every = int(delta_B_update_every)  # fix 1: use param, not kwargs
+        self._turn = 0
         self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
 
     def count_parameters(self):
@@ -321,9 +326,10 @@ class Server(ServerBase):
         self.model.eval()
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
+        update_delta_B = (self._turn % self.delta_B_update_every == 0)
+        self._turn += 1
 
         for name in base_model_dict.keys():
-
             if 'embedding_item.linear' in name:
                 # B is permanently frozen — never updated
                 continue
@@ -343,8 +349,14 @@ class Server(ServerBase):
 
             elif 'delta_B' in name:
                 # ===== ΔB: standard FedAvg (light global correction) =====
-                base_model_dict[name] = sum(
-                    [m[name] * num for m, num in zip(model_list, num_list)]) / data_num
+                if update_delta_B:
+                    delta_list = [(m[name], num) for m, num in zip(model_list, num_list) if name in m]
+                    if len(delta_list) > 0:
+                        base_model_dict[name] = sum(
+                            [d * n for d, n in delta_list]) / sum([n for _, n in delta_list])
+                        logging.info("ΔB updated at turn {} ({} clients)".format(
+                            self._turn - 1, len(delta_list)))
+                # else: keep current ΔB unchanged
                 # =========================================================
 
             else:
@@ -432,7 +444,9 @@ class FedNCF_Lora_Momentum_3:
                 learning_rate=learning_rate,
                 optimizer=optimizer,
                 loss_fn=loss_fn, metrics=metrics,
-                delta_scale=float(kwargs.get("delta_scale", 0.1)),  # fix 2: pass scale
+                delta_scale=float(kwargs.get("delta_scale", 0.3)),        # fix 3a
+                delta_B_lr=float(kwargs.get("delta_B_lr", learning_rate * 0.5)),  # fix 3b
+                lambda_delta=float(kwargs.get("lambda_delta", 1e-4)),     # fix 3c
             )
 
         server_model = _make_model()
@@ -441,6 +455,7 @@ class FedNCF_Lora_Momentum_3:
             server_model,
             beta=float(kwargs.get("beta", 0.9)),
             eta_s=float(kwargs.get("eta_s", 1.0)),
+            delta_B_update_every=int(kwargs.get("delta_B_update_every", 10)),
         )
         self.client = Client(
             client_id=0, model=_make_model(),
@@ -486,7 +501,8 @@ class FedNCF_Lora_Momentum_3:
             self.server.global_model = self.server.model.embedding_p.state_dict()
 
         for turn in range(self.train_turn):
-            is_pretrain = (turn < self.ae_warmup_turns)   # Phase 1
+            is_pretrain      = (turn < self.ae_warmup_turns)
+            update_delta_B   = (not is_pretrain) and (turn % self.delta_B_update_every == 0)
             # Phase 2 starts at ae_warmup_turns
             if turn == self.ae_warmup_turns:
                 logging.info("*** Phase 2 START: LoRA+ΔB — train A + ΔB, B frozen ***")
@@ -504,9 +520,10 @@ class FedNCF_Lora_Momentum_3:
                     user, self.local_epoch, self.dataload,
                     pre_train=is_pretrain,
                     compressed=self.compressed,
+                    update_delta_B=update_delta_B,   # ← pass flag
                 )
                 losses.append(loss)
-                client_model.append(self.client.upload_model())
+                client_model.append(self.client.upload_model(update_delta_B))  # ← pass flag
                 client_local_data_num.append(self.client.local_data_num())
 
             self.server.aggregation(

@@ -23,21 +23,19 @@ FedNCF_ml1m_triple_101_momentum_3:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    # **software**
-    # dataset_id: Amazon_software_t5
-    # dataloader: AmazonDataLoaderFL
-    # clients_num_per_turn: 180
-    # **industrial**
-    # dataset_id: Amazon_industrial_t5
-    # dataloader: AmazonDataLoaderFL
-    # clients_num_per_turn: 530
-    ## **Compressed embedding**
-    # **LoRA + Momentum + 3-phase**
+    ## **Model**
     model: FedNCF_Lora_Momentum_3
-    latent_dim: 4       # rank r, try 2 for more compression
-    beta: 0.9           # momentum coefficient
-    eta_s: 1.0          # server learning rate
-    delta_scale: 0.1   # constrain ΔB: emb = B·A + 0.1*ΔB·A
+    latent_dim: 4
+
+    # A aggregation
+    beta: 0.5
+    eta_s: 1.0
+
+    # ΔB control
+    delta_scale: 0.3
+    delta_B_lr: 5.e-4
+    delta_B_update_every: 10
+    lambda_delta: 1.e-4
 
 FedNCF_ml1m_triple_101_momentum_2:
     seed: 2024
