@@ -482,6 +482,7 @@ class FedNCF_Lora_Momentum_3:
         self.dataload             = dataload
         self.pre_epoch            = kwargs["pre_epoch"]
         self.ae_warmup_turns      = 20               # Phase 1: fixed
+        self.delta_B_update_every = int(kwargs.get("delta_B_update_every", 10))  # ← add this
         self.compressed           = kwargs.get("compressed", False)
         self.cdp                  = kwargs.get("cdp", None)
         self.ldp                  = kwargs.get("ldp", None)
