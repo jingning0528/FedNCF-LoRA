@@ -131,13 +131,13 @@ class model(BaseModel):
 
     def train_step_triple(self, users, pos, neg, global_model=None, update_delta_B=True):
         """
-        Phase 2: B frozen, train A + ΔB + user_emb + MLP
+        Phase 2: B frozen, train A + ΔB + embedding_p + user_emb + MLP
         """
         self.train()
         self.embedding_item.linear.weight.requires_grad_(False)
         self.embedding_item.emb.weight.requires_grad_(True)
-        self.delta_B.weight.requires_grad_(update_delta_B)   # ← controlled
-        self.embedding_p.weight.requires_grad_(False)
+        self.delta_B.weight.requires_grad_(update_delta_B)
+        self.embedding_p.weight.requires_grad_(True)   # ← changed: False → True
 
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
