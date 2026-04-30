@@ -13,8 +13,8 @@ from .pfedrec_lora import PFedRec_Lora
 from .pfedrec_rpq import PFedRec_RPQ
 from .pfedrec_hash import PFedRec_Hash
 
-from .fedncf_lora_momentum import FedNCF_Lora_Momentum
-from .fedncf_lora_momentum_2 import FedNCF_Lora_Momentum_2
-from .fedncf_lora_momentum_3 import FedNCF_Lora_Momentum_3
-from .fedncf_lora_momentum_4 import FedNCF_Lora_Momentum_4
-from .fedncf_lora_momentum_5 import FedNCF_Lora_Momentum_5
+from .fedncf_lora_fixedB_momentum import FedNCF_Lora_fixedB_Momentum
+from .fedncf_lora_fixedB_momentum_warmupB import FedNCF_Lora_FixedB_Momentum_WarmupB
+from .fedncf_lora_deltaB_momentum import FedNCF_Lora_DeltaB_Momentum
+from .fedncf_lora_deltaB import FedNCF_Lora_DeltaB
+from .fedncf_lora_fixedB import FedNCF_Lora_FixedB

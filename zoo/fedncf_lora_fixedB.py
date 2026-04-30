@@ -1,5 +1,5 @@
 """
-Fixed B, basic B with Momentum.
+Fixed B, basic B without Momentum.
 """
 
 from collections import OrderedDict
@@ -221,15 +221,11 @@ class Client(ClientBase):
 
 class Server(ServerBase):
     model: model
-    def __init__(self, model, beta=0.9, eta_s=1.0):
+    def __init__(self, model):
         super().__init__(model)
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
-        # momentum params
-        self.beta = beta
-        self.eta_s = eta_s
-        # momentum velocity for A (embedding_item.emb), shape: [item_num, latent_dim]
-        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
+        # momentum removed
 
     def count_parameters(self):
         # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
@@ -259,7 +255,7 @@ class Server(ServerBase):
 
         for name in base_model_dict.keys():
             if 'embedding_item.linear' in name:
-                # B is SHARED/GLOBAL — never updated from clients
+                # B is fixed/shared — never updated from clients
                 continue
 
             elif 'embedding_user' in name:
@@ -268,31 +264,29 @@ class Server(ServerBase):
                     base_model_dict[name].data[user] = m[name].data[user]
 
             elif 'embedding_item.emb' in name:
-                # ===== Shared-B LoRA + Momentum Aggregation for A =====
-                # step 1: weighted average of A_u
-                A_bar = sum([m[name] * num for m, num in zip(model_list, num_list)]) / data_num
-                # step 2: compute delta (change from current A)
-                delta_A = A_bar - base_model_dict[name]
-                # step 3: momentum update on delta  v_A^t = beta * v_A^{t-1} + delta_A^t
-                self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
-                # step 4: A^{t+1} = A^t + eta_s * v_A^t
-                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
-                # ========================================================
+                # A aggregation: plain FedAvg (no momentum)
+                base_model_dict[name] = sum(
+                    [m[name] * num for m, num in zip(model_list, num_list)]
+                ) / data_num
 
             else:
                 # mlp, embedding_p: standard FedAvg
                 base_model_dict[name] = sum(
-                    [m[name] * num for m, num in zip(model_list, num_list)]) / data_num
+                    [m[name] * num for m, num in zip(model_list, num_list)]
+                ) / data_num
                 if cdp is not None and cdp > 0.:
                     base_model_dict[name] += torch.normal(
-                        0, cdp, size=base_model_dict[name].size()).to(self.model.device)
+                        0, cdp, size=base_model_dict[name].size()
+                    ).to(self.model.device)
                 elif ldp is not None and ldp > 0.:
                     noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(
                         self.model.device) for _ in range(len(user_list))]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
 
         self.model.load_weights(copy.deepcopy(base_model_dict))
-        logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
+        logging.info("Clients average loss: {}".format(
+            torch.mean(torch.tensor([l.detach() if isinstance(l, torch.Tensor) else l for l in loss_list]))
+        ))
 
     def get_client_model(self, user):
         if user in self.models:
@@ -318,7 +312,7 @@ class Server(ServerBase):
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-class FedNCF_Lora_Momentum:
+class FedNCF_Lora_FixedB:
     def __init__(self, 
                  dataload:BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -341,7 +335,7 @@ class FedNCF_Lora_Momentum:
                  task,
                  *args, **kwargs
                  ):
-        server_model =  model(
+        server_model = model(
             user_num=user_num,
             item_num=item_num,
             embedding_dim=embedding_dim,
@@ -359,11 +353,7 @@ class FedNCF_Lora_Momentum:
             metrics=metrics,
         )
         server_model.reset_parameters()
-        self.server = Server(
-            server_model,
-            beta=float(kwargs.get("beta", 0.9)),
-            eta_s=float(kwargs.get("eta_s", 1.0))
-        )
+        self.server = Server(server_model)  # beta/eta_s removed
         self.client = Client(client_id=0, model=model(
             user_num=user_num,
             item_num=item_num,

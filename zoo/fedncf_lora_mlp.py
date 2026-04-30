@@ -1,5 +1,5 @@
 """
-Fixed B, basic B without Momentum.
+Apply LoRA on mlp layer 1 and item embedding
 """
 
 from collections import OrderedDict
@@ -112,17 +112,14 @@ class model(BaseModel):
     
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
-        # freeze B (shared linear), only train A (emb)
-        self.embedding_item.linear.weight.requires_grad_(False)
-        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
+        self.embedding_p.requires_grad_ = False
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg,) + self.add_regularization_triple(
-                self.embedding_user.weight[users[0]], self.emb_item(pos), self.emb_item(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item(pos), self.emb_item(neg),)
         else:
-            loss = self.loss_fn(pred_pos, pred_neg,)
+            loss = self.loss_fn(pred_pos, pred_neg, )
         loss.backward()
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
@@ -132,7 +129,7 @@ class model(BaseModel):
 
     def train_step_triple_c(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
+        self.embedding_p.requires_grad_ = False
         self.optimizer.zero_grad()
         pred_pos = self.forward_c(users, pos)
         pred_neg = self.forward_c(users, neg)
@@ -149,7 +146,7 @@ class model(BaseModel):
     
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.weight.requires_grad_(True)   # ✅ fixed
+        self.embedding_p.requires_grad_ = True
         self.optimizer.zero_grad()
         pred_pos = self.forward_pre(users, pos)
         pred_neg = self.forward_pre(users, neg)
@@ -165,7 +162,7 @@ class model(BaseModel):
         return loss
 
 class Client(ClientBase):
-    model: model
+    model:model
     def __init__(self, client_id, model, task, fedop):
         super().__init__(client_id, model)
         self.task = task.lower()
@@ -176,13 +173,6 @@ class Client(ClientBase):
         self.model.to(self.model.device)
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
-
-    def upload_model(self):
-        """ Only upload A_u (embedding_item.emb), NOT B (embedding_item.linear) """
-        full_state = self.model.state_dict()
-        upload_state = {k: v.clone() for k, v in full_state.items()
-                        if 'embedding_item.linear' not in k}
-        return upload_state
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
         self.model.train()
@@ -209,8 +199,8 @@ class Client(ClientBase):
             users, items, labels = dataload.get_traindata(user)
             self.__local_data_num = labels.size(0)
             for _ in range(local_epoch):
-                if self.fedop == "fedprox":  # ✅ was self.fedprox (AttributeError)
-                    loss = self.model.train_step(users, items, labels, self.global_model)
+                if self.fedop == "fedprox":
+                    loss = self.model.train_step(users, pos, neg, self.global_model)
                 else:
                     loss = self.model.train_step(users, items, labels)
         # logging.info("Client {} for user {}, train loss: {:.6f}".format(self.client_id, user, loss))
@@ -220,12 +210,11 @@ class Client(ClientBase):
         return self.__local_data_num
 
 class Server(ServerBase):
-    model: model
-    def __init__(self, model):
+    model:model
+    def __init__(self, model, ):
         super().__init__(model)
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
-        # momentum removed
 
     def count_parameters(self):
         # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
@@ -252,41 +241,19 @@ class Server(ServerBase):
         self.model.eval()
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
-
         for name in base_model_dict.keys():
-            if 'embedding_item.linear' in name:
-                # B is fixed/shared — never updated from clients
-                continue
-
-            elif 'embedding_user' in name:
-                # per-user embedding: update only selected users
-                for m, user in zip(model_list, user_list):
-                    base_model_dict[name].data[user] = m[name].data[user]
-
-            elif 'embedding_item.emb' in name:
-                # A aggregation: plain FedAvg (no momentum)
-                base_model_dict[name] = sum(
-                    [m[name] * num for m, num in zip(model_list, num_list)]
-                ) / data_num
-
+            if "embedding_user" in name:
+                for model, user in zip(model_list, user_list):
+                    base_model_dict[name].data[user] = model[name].data[user]
             else:
-                # mlp, embedding_p: standard FedAvg
-                base_model_dict[name] = sum(
-                    [m[name] * num for m, num in zip(model_list, num_list)]
-                ) / data_num
+                base_model_dict[name] = sum([model[name] * num for model, num in zip(model_list, num_list)]) / data_num
                 if cdp is not None and cdp > 0.:
-                    base_model_dict[name] += torch.normal(
-                        0, cdp, size=base_model_dict[name].size()
-                    ).to(self.model.device)
+                    base_model_dict[name] += torch.normal(0, cdp, size=base_model_dict[name].size()).to(self.model.device)
                 elif ldp is not None and ldp > 0.:
-                    noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(
-                        self.model.device) for _ in range(len(user_list))]
+                    noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device) for _ in range(len(user_list))]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
-
         self.model.load_weights(copy.deepcopy(base_model_dict))
-        logging.info("Clients average loss: {}".format(
-            torch.mean(torch.tensor([l.detach() if isinstance(l, torch.Tensor) else l for l in loss_list]))
-        ))
+        logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
 
     def get_client_model(self, user):
         if user in self.models:
@@ -312,7 +279,7 @@ class Server(ServerBase):
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-class FedNCF_Lora_Momentum_5:
+class FedNCF_Lora:
     def __init__(self, 
                  dataload:BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -335,7 +302,7 @@ class FedNCF_Lora_Momentum_5:
                  task,
                  *args, **kwargs
                  ):
-        server_model = model(
+        server_model =  model(
             user_num=user_num,
             item_num=item_num,
             embedding_dim=embedding_dim,
@@ -353,7 +320,7 @@ class FedNCF_Lora_Momentum_5:
             metrics=metrics,
         )
         server_model.reset_parameters()
-        self.server = Server(server_model)  # beta/eta_s removed
+        self.server = Server(server_model)
         self.client = Client(client_id=0, model=model(
             user_num=user_num,
             item_num=item_num,
@@ -421,7 +388,8 @@ class FedNCF_Lora_Momentum_5:
             # self.server.aggregation(select_users, client_model, client_local_data_num, losses)
             self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
             torch.cuda.empty_cache()
-            # ---- evaluate every 10 rounds ----
+
+        # ---- evaluate every 10 rounds ----
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
                 self.server.evaluate(self.dataload, range(self.user_num))
@@ -429,3 +397,4 @@ class FedNCF_Lora_Momentum_5:
         logging.info("********* Final Test *********")
         results = self.server.evaluate(self.dataload, range(self.user_num))
         return results
+    

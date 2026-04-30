@@ -1,4 +1,4 @@
-FedNCF_ml1m_triple_101_momentum_5:
+FedNCF_ml1m_triple_101_fixedB:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -21,10 +21,10 @@ FedNCF_ml1m_triple_101_momentum_5:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    model: FedNCF_Lora_Momentum_5
+    model: FedNCF_Lora_FixedB
     latent_dim: 4
 
-FedNCF_ml1m_triple_101_momentum_4:
+FedNCF_ml1m_triple_101_deltaB:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -47,7 +47,7 @@ FedNCF_ml1m_triple_101_momentum_4:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    model: FedNCF_Lora_Momentum_4
+    model: FedNCF_Lora_DeltaB
     latent_dim: 4
     # ΔB control (momentum removed — A uses plain FedAvg)
     delta_scale: 0.3
@@ -56,7 +56,7 @@ FedNCF_ml1m_triple_101_momentum_4:
     lambda_delta: 1.e-4
     # beta / eta_s intentionally removed
 
-FedNCF_ml1m_triple_101_momentum_3:
+FedNCF_ml1m_triple_101_deltaB_momentum:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -82,7 +82,7 @@ FedNCF_ml1m_triple_101_momentum_3:
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
     ## **Model**
-    model: FedNCF_Lora_Momentum_3
+    model: FedNCF_Lora_DeltaB_Momentum
     latent_dim: 4
 
     # A aggregation
@@ -94,7 +94,7 @@ FedNCF_ml1m_triple_101_momentum_3:
     delta_B_update_every: 10
     lambda_delta: 1.e-4
 
-FedNCF_ml1m_triple_101_momentum_2:
+FedNCF_ml1m_triple_101_FixedB_momentum_warmupB:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -129,7 +129,7 @@ FedNCF_ml1m_triple_101_momentum_2:
     # clients_num_per_turn: 530
     ## **Compressed embedding**
     # **LoRA + Momentum + 3-phase**
-    model: FedNCF_Lora_Momentum_2
+    model: FedNCF_Lora_FixedB_Momentum_WarmupB
     latent_dim: 4       # rank r, try 2 for more compression
     beta: 0.9           # momentum coefficient
     eta_s: 1.0          # server learning rate
@@ -138,7 +138,7 @@ FedNCF_ml1m_triple_101_momentum_2:
                         # Phase 2: B warmup    turns 20-29 (A + B + MLP)
                         # Phase 3: freeze B    turns 30+   (A + MLP only)
 
-FedNCF_ml1m_triple_101_momentum:
+FedNCF_ml1m_triple_101_fixedB_momentum:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -173,7 +173,7 @@ FedNCF_ml1m_triple_101_momentum:
     # clients_num_per_turn: 530
     ## **Compressed embedding**
     # **LoRA + Momentum**
-    model: FedNCF_Lora_Momentum
+    model: FedNCF_Lora_fixedB_Momentum
     latent_dim: 4       # rank r, try 2 for more compression
     beta: 0.9           # momentum coefficient
     eta_s: 1.0          # server learning rate
