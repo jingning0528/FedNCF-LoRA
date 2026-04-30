@@ -1,5 +1,5 @@
 """
-Delta-B with momentum.
+Delta-B without momentum.
 """
 
 from collections import OrderedDict
@@ -295,15 +295,13 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(self, model, beta=0.9, eta_s=1.0, delta_B_update_every=10):
+    def __init__(self, model, delta_B_update_every=10):
         super().__init__(model)
         self.models       = {}
         self.global_model = self.model.embedding_p.state_dict()
-        self.beta         = beta
-        self.eta_s        = eta_s
-        self.delta_B_update_every = int(delta_B_update_every)  # fix 1: use param, not kwargs
+        self.delta_B_update_every = int(delta_B_update_every)
         self._turn = 0
-        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
+        # no v_A — momentum removed
 
     def count_parameters(self):
         self.model.eval()
@@ -330,24 +328,19 @@ class Server(ServerBase):
 
         for name in base_model_dict.keys():
             if 'embedding_item.linear' in name:
-                # B is permanently frozen — never updated
                 continue
 
             elif 'embedding_user' in name:
-                # per-user: update only selected users
                 for m, user in zip(model_list, user_list):
                     base_model_dict[name].data[user] = m[name].data[user]
 
             elif 'embedding_item.emb' in name:
-                # ===== A: FedAvg + Momentum =====
-                A_bar   = sum([m[name] * num for m, num in zip(model_list, num_list)]) / data_num
-                delta_A = A_bar - base_model_dict[name]
-                self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
-                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
-                # ================================
+                # ===== A: standard FedAvg (no momentum) =====
+                base_model_dict[name] = sum(
+                    [m[name] * num for m, num in zip(model_list, num_list)]) / data_num
+                # ============================================
 
             elif 'delta_B' in name:
-                # ===== ΔB: standard FedAvg (light global correction) =====
                 if update_delta_B:
                     delta_list = [(m[name], num) for m, num in zip(model_list, num_list) if name in m]
                     if len(delta_list) > 0:
@@ -355,11 +348,8 @@ class Server(ServerBase):
                             [d * n for d, n in delta_list]) / sum([n for _, n in delta_list])
                         logging.info("ΔB updated at turn {} ({} clients)".format(
                             self._turn - 1, len(delta_list)))
-                # else: keep current ΔB unchanged
-                # =========================================================
 
             else:
-                # mlp, embedding_p: standard FedAvg
                 base_model_dict[name] = sum(
                     [m[name] * num for m, num in zip(model_list, num_list)]) / data_num
                 if cdp is not None and cdp > 0.:
@@ -390,21 +380,18 @@ class Server(ServerBase):
             y_pred.extend(self.model.forward(users, items).data.cpu().numpy().reshape(-1))
             y_true.extend(labels.data.cpu().numpy().reshape(-1))
             group_id.extend(users.data.cpu().numpy().reshape(-1))
-        y_pred    = np.array(y_pred, np.float64)
-        y_true    = np.array(y_true, np.float64)
-        group_id  = np.array(group_id) if len(group_id) > 0 else None
-        val_logs  = self.model.evaluate_metrics(y_true, y_pred, self.model.metrcis, group_id)
+        y_pred   = np.array(y_pred, np.float64)
+        y_true   = np.array(y_true, np.float64)
+        group_id = np.array(group_id) if len(group_id) > 0 else None
+        val_logs = self.model.evaluate_metrics(y_true, y_pred, self.model.metrcis, group_id)
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v)
                                                 for k, v in val_logs.items()))
         return val_logs
 
 
-class FedNCF_Lora_Momentum_3:
+class FedNCF_Lora_Momentum_4:
     """
-    2-phase training:
-      Phase 1 (turns 0–19)  : AE warmup  — embedding_p only
-      Phase 2 (turns 20+)   : LoRA+ΔB   — train A + ΔB, B frozen forever
-
+    No-momentum baseline: standard FedAvg for A + ΔB correction.
     item_emb = embedding_p(i) + (B + ΔB)·A(i)
     """
     def __init__(self,
@@ -443,17 +430,15 @@ class FedNCF_Lora_Momentum_3:
                 learning_rate=learning_rate,
                 optimizer=optimizer,
                 loss_fn=loss_fn, metrics=metrics,
-                delta_scale=float(kwargs.get("delta_scale", 0.3)),        # fix 3a
-                delta_B_lr=float(kwargs.get("delta_B_lr", learning_rate * 0.5)),  # fix 3b
-                lambda_delta=float(kwargs.get("lambda_delta", 1e-4)),     # fix 3c
+                delta_scale=float(kwargs.get("delta_scale", 0.3)),
+                delta_B_lr=float(kwargs.get("delta_B_lr", learning_rate * 0.5)),
+                lambda_delta=float(kwargs.get("lambda_delta", 1e-4)),
             )
 
         server_model = _make_model()
         server_model.reset_parameters()
         self.server = Server(
             server_model,
-            beta=float(kwargs.get("beta", 0.9)),
-            eta_s=float(kwargs.get("eta_s", 1.0)),
             delta_B_update_every=int(kwargs.get("delta_B_update_every", 10)),
         )
         self.client = Client(

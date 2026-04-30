@@ -1,21 +1,5 @@
 """
-Perifanis V, Efraimidis P S. Federated neural collaborative filtering
-[J]. Knowledge-Based Systems, 2022, 242: 108441.
-
-@article{DBLP:journals/kbs/PerifanisE22,
-  author       = {Vasileios Perifanis and
-                  Pavlos S. Efraimidis},
-  title        = {Federated Neural Collaborative Filtering},
-  journal      = {Knowl. Based Syst.},
-  volume       = {242},
-  pages        = {108441},
-  year         = {2022},
-  url          = {https://doi.org/10.1016/j.knosys.2022.108441},
-  doi          = {10.1016/J.KNOSYS.2022.108441},
-  timestamp    = {Fri, 22 Mar 2024 09:01:07 +0100},
-  biburl       = {https://dblp.org/rec/journals/kbs/PerifanisE22.bib},
-  bibsource    = {dblp computer science bibliography, https://dblp.org}
-}
+B warmup + fixed B 
 """
 
 from collections import OrderedDict
