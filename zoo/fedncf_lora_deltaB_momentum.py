@@ -8,6 +8,7 @@ import numpy as np
 import torch.nn as nn
 import torch
 import logging
+import time
 from dataloaders.BaseDataLoader import *
 from framework.fed.client import ClientBase
 from framework.fed.server import ServerBase
@@ -510,27 +511,52 @@ class FedNCF_Lora_DeltaB_Momentum:
             phase_label = "phase1_AE" if is_pretrain else "phase2_LoRA+dB"
             logging.info("********* Train Turn {} [{}] *********".format(turn, phase_label))
 
+            round_start = time.perf_counter()
+            local_train_time = 0.0
+
             select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
             client_model, client_local_data_num, losses = [], [], []
 
             for user in select_users:
                 self.client.load_client(user)
                 self.client.load_model(self.server.distribute_model(user))
+
+                t0 = time.perf_counter()
                 loss = self.client.local_train(
                     user, self.local_epoch, self.dataload,
                     pre_train=is_pretrain,
                     compressed=self.compressed,
-                    update_delta_B=update_delta_B,   # ← pass flag
+                    update_delta_B=update_delta_B,
                 )
+                local_train_time += time.perf_counter() - t0
+
                 losses.append(loss)
-                client_model.append(self.client.upload_model(update_delta_B))  # ← pass flag
+                client_model.append(self.client.upload_model(update_delta_B))
                 client_local_data_num.append(self.client.local_data_num())
 
+            agg_start = time.perf_counter()
             self.server.aggregation(
                 select_users, client_model, client_local_data_num, losses,
                 cdp=self.cdp, ldp=self.ldp,
             )
-            torch.cuda.empty_cache()
+            agg_time = time.perf_counter() - agg_start
+            round_time = time.perf_counter() - round_start
+
+            avg_client_train_time = (
+                local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+            )
+            logging.info(
+                f"[Time] turn={turn} "
+                f"phase={phase_label} "
+                f"update_delta_B={update_delta_B} "
+                f"local_train_time={local_train_time:.4f}s "
+                f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"aggregation_time={agg_time:.4f}s "
+                f"round_time={round_time:.4f}s"
+            )
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             # ---- evaluate every 10 rounds ----
             if (turn + 1) % 10 == 0:

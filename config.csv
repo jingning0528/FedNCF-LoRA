@@ -1,0 +1,1 @@
+ 20260430-223054,[command] python main.py --expid FedNCF_ml1m_triple_101_lowrankmlp --gpu -1,[exp_id] FedNCF_ml1m_triple_101_lowrankmlp,[dataset_id] ML1M_t5,[train] N.A.,[test] logloss: 1.825310 - MRR: 0.245551 - NDCG(5): 0.222107 - HR(5): 0.286093 - NDCG(10): 0.270651 - HR(10): 0.440232 - NDCG(20): 0.331431 - HR(20): 0.678642 - NDCG(50): 0.375679 - HR(50): 0.903146
