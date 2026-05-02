@@ -22,11 +22,17 @@ SELECTED_LOG_FILES = [
     # "LoRA_rank16.txt",
 
     "LoRA_rank4_accuracy.txt",
-    "FixedB.txt",
-    "FixedB_Momentum.txt",
-    # "FixedB_Momentum_Warmup.txt",
+    # "FixedB.txt",
+    # "FixedB_Momentum.txt",
+    # "DeltaB.txt",
+    # "DeltaB_Momentum_deltascale0.3.txt",
+    # "PeriodicB.txt",
+
+    "DeltaB_update1.txt",
     "DeltaB.txt",
-    "DeltaB_Momentum_deltascale0.3.txt",
+    # "DeltaB_update20.txt",
+
+    # "FixedB_Momentum_Warmup.txt",
 
     # "DeltaB_Momentum_deltascale0.1.txt",
     # "DeltaB_Momentum_deltascale0.3.txt",

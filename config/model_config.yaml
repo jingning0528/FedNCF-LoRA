@@ -107,7 +107,7 @@ FedNCF_ml1m_triple_101_deltaB:
     # ΔB control (momentum removed — A uses plain FedAvg)
     delta_scale: 0.3
     delta_B_lr: 1.e-4
-    delta_B_update_every: 10
+    delta_B_update_every: 20
     lambda_delta: 1.e-4
     # beta / eta_s intentionally removed
 

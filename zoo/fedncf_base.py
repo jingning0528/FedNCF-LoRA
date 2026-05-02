@@ -24,6 +24,7 @@ import numpy as np
 import torch.nn as nn
 import torch
 import logging
+import time
 from dataloaders.BaseDataLoader import *
 from framework.fed.client import ClientBase
 from framework.fed.server import ServerBase
@@ -292,31 +293,47 @@ class FedNCF_base:
 
     def fit(self,):
         self.server.count_parameters()
-        # item_feature = self.dataload.get_item_feature()
-        # for turn in range(self.pre_epoch):
-        #     loss = self.g_model.train_step(item_feature)
-        #     # logging.info("loss: {} for iter: {}".format(loss, turn))
-        # latent = self.g_model.get_latent(item_feature)
-        # self.server.model.embedding_item.weight.data = copy.deepcopy(latent.detach())
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
+
+            round_start = time.perf_counter()
+            local_train_time = 0.0
+
             select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
             client_model = []
             client_local_data_num = []
             losses = []
+
             for user in select_users:
                 self.client.load_client(user)
                 self.client.load_model(self.server.distribute_model(user))
+
+                t0 = time.perf_counter()
                 loss = self.client.local_train(user, self.local_epoch, self.dataload, False, self.compressed)
+                local_train_time += time.perf_counter() - t0
+
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
                 client_local_data_num.append(self.client.local_data_num())
-            # self.server.aggregation(select_users, client_model, client_local_data_num, losses)
+
+            agg_start = time.perf_counter()
             self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
-            torch.cuda.empty_cache()
+            agg_time = time.perf_counter() - agg_start
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            round_time = time.perf_counter() - round_start
+            avg_client_train_time = local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+            logging.info(
+                f"[Time] turn={turn} "
+                f"local_train_time={local_train_time:.4f}s "
+                f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"aggregation_time={agg_time:.4f}s "
+                f"round_time={round_time:.4f}s"
+            )
 
         logging.info("********* Test *********")
         results = self.server.evaluate(self.dataload, range(self.user_num))
         return results
-    
