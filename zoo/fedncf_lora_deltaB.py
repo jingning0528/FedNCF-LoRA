@@ -25,7 +25,7 @@ class model(BaseModel):
     
     B      : fixed/shared basis      (frozen forever)
     ΔB     : small global correction (lightly updated via FedAvg)
-    A      : client low-rank coeff   (per-client, aggregated with momentum)
+    A      : client low-rank coeff   (aggregated by plain FedAvg, no momentum)
     """
     def __init__(self, 
                  user_num, 
@@ -320,12 +320,15 @@ class Server(ServerBase):
     def distribute_model(self, user):
         return super().distribute_model()
 
-    def aggregation(self, user_list, model_list, num_list, loss_list, cdp=None, ldp=None):
+    def aggregation(self, user_list, model_list, num_list, loss_list, update_delta_B=False, cdp=None, ldp=None):
+        """
+        Aggregate client models.
+        IMPORTANT: update_delta_B is passed from fit(), so local training, upload,
+        and server aggregation all use exactly the same periodic ΔB schedule.
+        """
         self.model.eval()
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
-        update_delta_B = (self._turn % self.delta_B_update_every == 0)
-        self._turn += 1
 
         for name in base_model_dict.keys():
             if 'embedding_item.linear' in name:
@@ -347,8 +350,11 @@ class Server(ServerBase):
                     if len(delta_list) > 0:
                         base_model_dict[name] = sum(
                             [d * n for d, n in delta_list]) / sum([n for _, n in delta_list])
-                        logging.info("ΔB updated at turn {} ({} clients)".format(
-                            self._turn - 1, len(delta_list)))
+                        logging.info("ΔB updated this round ({} clients)".format(len(delta_list)))
+                    else:
+                        logging.info("ΔB update requested, but no clients uploaded delta_B")
+                else:
+                    logging.info("ΔB kept unchanged this round")
 
             else:
                 base_model_dict[name] = sum(
@@ -488,7 +494,10 @@ class FedNCF_Lora_DeltaB:
 
         for turn in range(self.train_turn):
             is_pretrain = (turn < self.ae_warmup_turns)
-            update_delta_B = (not is_pretrain) and (turn % self.delta_B_update_every == 0)
+            update_delta_B = (
+                (not is_pretrain) and
+                ((turn - self.ae_warmup_turns) % self.delta_B_update_every == 0)
+            )
             if turn == self.ae_warmup_turns:
                 logging.info("*** Phase 2 START: LoRA+ΔB — train A + ΔB, B frozen ***")
 
@@ -521,6 +530,7 @@ class FedNCF_Lora_DeltaB:
             agg_start = time.perf_counter()
             self.server.aggregation(
                 select_users, client_model, client_local_data_num, losses,
+                update_delta_B=update_delta_B,
                 cdp=self.cdp, ldp=self.ldp,
             )
             agg_time = time.perf_counter() - agg_start
@@ -529,10 +539,12 @@ class FedNCF_Lora_DeltaB:
             avg_client_train_time = (
                 local_train_time / len(select_users) if len(select_users) > 0 else 0.0
             )
+            delta_B_norm = self.server.model.delta_B.weight.norm().item()
             logging.info(
                 f"[Time] turn={turn} "
                 f"phase={phase_label} "
                 f"update_delta_B={update_delta_B} "
+                f"delta_B_norm={delta_B_norm:.6f} "
                 f"local_train_time={local_train_time:.4f}s "
                 f"avg_client_train_time={avg_client_train_time:.6f}s "
                 f"aggregation_time={agg_time:.4f}s "

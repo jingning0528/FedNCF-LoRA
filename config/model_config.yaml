@@ -1,3 +1,36 @@
+FedNCF_ml1m_triple_101_deltaB:
+    seed: 2024
+    local_epoch: 2
+    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
+    task: 'triple'
+    train_turn: 500
+    embedding_dim: 32
+    hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
+    output_dim: 1
+    dropout: 0.5
+    only_inter: false
+    embedding_regularizer: 1.e-8
+    net_regularizer: 1.e-8
+    learning_rate: 1.e-3
+    optimizer: adam
+    loss_fn: 'bpr_loss'
+    pre_epoch: 3000
+    dataset_id: ML1M_t5
+    dataloader: MLDataLoaderFL
+    clients_num_per_turn: 604
+    model: FedNCF_Lora_DeltaB
+    latent_dim: 4
+    # ΔB control (momentum removed — A uses plain FedAvg)
+    delta_scale: 0.3
+    delta_B_lr: 1.e-4
+    delta_B_update_every: 5
+    lambda_delta: 1.e-4
+    # beta / eta_s intentionally removed
+
+
 FedNCF_ml1m_triple_101_periodicB:
     seed: 2024
     local_epoch: 2
@@ -23,6 +56,7 @@ FedNCF_ml1m_triple_101_periodicB:
     clients_num_per_turn: 604
     model: FedNCF_Lora_PeriodicB
     latent_dim: 4
+    B_update_every: 15
 
 
 FedNCF_ml1m_triple_101_lowrankmlp:
@@ -79,37 +113,7 @@ FedNCF_ml1m_triple_101_fixedB:
     model: FedNCF_Lora_FixedB
     latent_dim: 4
 
-FedNCF_ml1m_triple_101_deltaB:
-    seed: 2024
-    local_epoch: 2
-    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
-    task: 'triple'
-    train_turn: 500
-    embedding_dim: 32
-    hidden_activations: ReLU
-    hidden_units: [64, 128, 64]
-    g_hidden_units: [512, 256, 128]
-    g_hidden_activations: ReLU
-    output_dim: 1
-    dropout: 0.5
-    only_inter: false
-    embedding_regularizer: 1.e-8
-    net_regularizer: 1.e-8
-    learning_rate: 1.e-3
-    optimizer: adam
-    loss_fn: 'bpr_loss'
-    pre_epoch: 3000
-    dataset_id: ML1M_t5
-    dataloader: MLDataLoaderFL
-    clients_num_per_turn: 604
-    model: FedNCF_Lora_DeltaB
-    latent_dim: 4
-    # ΔB control (momentum removed — A uses plain FedAvg)
-    delta_scale: 0.3
-    delta_B_lr: 1.e-4
-    delta_B_update_every: 15
-    lambda_delta: 1.e-4
-    # beta / eta_s intentionally removed
+
 
 FedNCF_ml1m_triple_101_deltaB_momentum:
     seed: 2024
