@@ -21,12 +21,12 @@ FedNCF_ml1m_triple_101_deltaB:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    model: FedNCF_Lora_DeltaB
+    model: FedNCF_Lora_DeltaB_V1
     latent_dim: 4
     # ΔB control (momentum removed — A uses plain FedAvg)
     delta_scale: 0.3
     delta_B_lr: 1.e-4
-    delta_B_update_every: 5
+    delta_B_update_every: 100
     lambda_delta: 1.e-4
     # beta / eta_s intentionally removed
 
