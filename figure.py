@@ -28,12 +28,11 @@ SELECTED_LOG_FILES = [
     # "DeltaB_Momentum_deltascale0.3.txt",
     # "PeriodicB.txt",
 
-    "DeltaB_update_every_1.txt",
-    "DeltaB_update_every_5.txt",
-    "DeltaB_update_every_10.txt",
-    # "DeltaB_update_every_15.txt",
-    # "DeltaB_update_every_20.txt",
-
+    "DeltaB_update_every_1_v1.txt",
+    # "DeltaB_update_every_5_v1.txt",
+    "DeltaB_update_every_10_v1.txt",
+    "DeltaB_update_every_15_v1.txt",
+    # "DeltaB_update_every_20_v1.txt",
     # "FixedB_Momentum_Warmup.txt",
 
     # "DeltaB_Momentum_deltascale0.1.txt",
