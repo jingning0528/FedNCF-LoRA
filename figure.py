@@ -13,47 +13,65 @@ REPO_ROOT = Path(__file__).resolve().parent
 LOG_DIR = REPO_ROOT / "log"
 FIG_DIR = REPO_ROOT / "figures"
 
-# Set log file names here (1 to 5 files)
+# Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
-    
     # "LoRA_rank2.txt",
     # "LoRA_rank4.txt",
     # "LoRA_rank8.txt",
     # "LoRA_rank16.txt",
 
     # "LoRA_rank4_accuracy.txt",
-    # "FixedB.txt",
-    # "FixedB_Momentum.txt",
-    # "DeltaB.txt",
-    # "DeltaB_Momentum_deltascale0.3.txt",
-    # "PeriodicB.txt",
+    # "DeltaB_update_every_10_v1.txt", # delta_scale=0.3, update_every=10
+    # "FixedB_p.txt",
 
-    "DeltaB_update_every_1_v1.txt",
-    # "DeltaB_update_every_5_v1.txt",
-    "DeltaB_update_every_10_v1.txt",
-    "DeltaB_update_every_15_v1.txt",
-    # "DeltaB_update_every_20_v1.txt",
-    # "FixedB_Momentum_Warmup.txt",
+    # "DeltaB_update10_scale0.txt",
+    # "DeltaB_update1_scale1_lr3_lamda0.txt",
+    # "DeltaB_update0_scale0.txt",
+    "DeltaB_update1_scale0.txt",
+    "DeltaB_update1_scale0.8.txt",
+    "DeltaB_update1_scale1.txt",
+    "DeltaB_update1_scale2.txt",
 
-    # "DeltaB_Momentum_deltascale0.1.txt",
-    # "DeltaB_Momentum_deltascale0.3.txt",
-    # "DeltaB_Momentum_deltascale0.5.txt",
+    "DeltaB_update1_scale0_c.txt",
+    "temp.txt",
 
-    # "DeltaB_Momentum_delta5.txt",
-    # "DeltaB_Momentum_deltascale0.3.txt",
-    # "DeltaB_Momentum_delta20.txt",
+    # "temp.txt",
+]
 
-    # "LoRA_rank4_1000.txt",
+# Select which eval metrics to plot (from logs [Metrics] line)
+# Supported examples:
+# "logloss", "MRR",
+# "NDCG(5)", "HR(5)",
+# "NDCG(10)", "HR(10)",
+# "NDCG(20)", "HR(20)",
+# "NDCG(50)", "HR(50)"
+SELECTED_METRICS = [
+    # "HR(20)",
+    # "NDCG(20)",
+    # "MRR",
+    # "logloss",
+    "HR(10)",
+    "NDCG(10)",
 
+]
+
+# All known metric options (for validation/help)
+AVAILABLE_METRICS = [
+    "logloss", "MRR",
+    "NDCG(5)", "HR(5)",
+    "NDCG(10)", "HR(10)",
+    "NDCG(20)", "HR(20)",
+    "NDCG(50)", "HR(50)",
 ]
 
 
 def parse_log(path: Path):
     train_turns, train_losses = [], []
-    eval_turns, hr10, ndcg10 = [], [], []
-
     current_turn = None
     pending_eval_turn = None
+
+    # metric_name -> {"turns": [...], "values": [...]}
+    eval_metrics = {}
 
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
@@ -73,34 +91,34 @@ def parse_log(path: Path):
             if m_eval:
                 pending_eval_turn = int(m_eval.group(1))
 
-            # Metrics line
+            # Metrics line (generic parser)
             if "[Metrics]" in line:
-                m_hr10 = re.search(r"HR\(10\):\s*([0-9]*\.?[0-9]+)", line)
-                m_ndcg10 = re.search(r"NDCG\(10\):\s*([0-9]*\.?[0-9]+)", line)
-                if m_hr10 and m_ndcg10:
-                    turn = pending_eval_turn if pending_eval_turn is not None else current_turn
-                    if turn is not None:
-                        eval_turns.append(turn)
-                        hr10.append(float(m_hr10.group(1)))
-                        ndcg10.append(float(m_ndcg10.group(1)))
-                    pending_eval_turn = None
+                turn = pending_eval_turn if pending_eval_turn is not None else current_turn
+                if turn is not None:
+                    # parse pairs like "NDCG(10): 0.088666" or "MRR: 0.083082"
+                    pairs = re.findall(r"([A-Za-z0-9_()]+)\s*:\s*([0-9]*\.?[0-9]+)", line)
+                    for metric_name, metric_val in pairs:
+                        if metric_name not in eval_metrics:
+                            eval_metrics[metric_name] = {"turns": [], "values": []}
+                        eval_metrics[metric_name]["turns"].append(turn)
+                        eval_metrics[metric_name]["values"].append(float(metric_val))
+                pending_eval_turn = None
 
-    # Align eval arrays in case logs have extra metrics lines
-    n = min(len(eval_turns), len(hr10), len(ndcg10))
-    eval_turns = np.array(eval_turns[:n], dtype=int)
-    hr10 = np.array(hr10[:n], dtype=float)
-    ndcg10 = np.array(ndcg10[:n], dtype=float)
-
-    # Train arrays
+    # convert arrays
     train_turns = np.array(train_turns, dtype=int)
     train_losses = np.array(train_losses, dtype=float)
+
+    for k in eval_metrics:
+        turns = np.array(eval_metrics[k]["turns"], dtype=int)
+        vals = np.array(eval_metrics[k]["values"], dtype=float)
+        n = min(len(turns), len(vals))
+        eval_metrics[k]["turns"] = turns[:n]
+        eval_metrics[k]["values"] = vals[:n]
 
     return {
         "train_turns": train_turns,
         "train_losses": train_losses,
-        "eval_turns": eval_turns,
-        "hr10": hr10,
-        "ndcg10": ndcg10,
+        "eval_metrics": eval_metrics,
     }
 
 
@@ -134,7 +152,7 @@ def plot_metric(data, x_key, y_key, title, y_label, out_path):
         plt.plot(x[:m], y[:m], linewidth=2, marker="o", markersize=3, label=name)
 
     plt.title(title)
-    plt.xlabel("round")  # changed axis label
+    plt.xlabel("round")
     plt.ylabel(y_label)
     plt.grid(alpha=0.3)
     plt.legend(fontsize=9)
@@ -143,17 +161,23 @@ def plot_metric(data, x_key, y_key, title, y_label, out_path):
     plt.close()
 
 
+def _safe_name(metric: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", metric).strip("_").lower()
+
+
 def main():
-    # Use file names from code (no terminal input needed)
     files = SELECTED_LOG_FILES
 
-    # allow up to 10 files
     if not (1 <= len(files) <= 10):
         raise ValueError("Please provide 1 to 10 file names in SELECTED_LOG_FILES.")
 
-    # optional note: usually best readability is <= 5 lines per figure
     if len(files) > 5:
         print(f"[Note] You selected {len(files)} files. Plot may look crowded (recommended <= 5).")
+
+    # validate selected metrics
+    unknown = [m for m in SELECTED_METRICS if m not in AVAILABLE_METRICS]
+    if unknown:
+        raise ValueError(f"Unknown metrics in SELECTED_METRICS: {unknown}\nAvailable: {AVAILABLE_METRICS}")
 
     selected_paths = []
     for fname in files:
@@ -168,8 +192,6 @@ def main():
     for name, d in data.items():
         ys, off = smooth(d["train_losses"], w=9)
         xs = d["train_turns"][off:off + len(ys)] if len(ys) > 0 else np.array([])
-
-        # keep one loss point every 10 rounds (like eval metrics frequency)
         xs_10, ys_10 = sample_every_n_rounds(xs, ys, n=10)
         d["train_turns_smooth"] = xs_10
         d["train_losses_smooth"] = ys_10
@@ -187,30 +209,35 @@ def main():
         out_path=FIG_DIR / f"{ts}_loss_comparison.png",
     )
 
-    # 2) HR@10 in one figure
-    plot_metric(
-        data=data,
-        x_key="eval_turns",
-        y_key="hr10",
-        title="HR@10 Comparison",
-        y_label="HR@10",
-        out_path=FIG_DIR / f"{ts}_hr10_comparison.png",
-    )
+    # 2) Selected eval metrics (one figure per metric)
+    for metric in SELECTED_METRICS:
+        metric_plot_data = {}
+        for run_name, d in data.items():
+            metric_dict = d.get("eval_metrics", {})
+            if metric in metric_dict:
+                metric_plot_data[run_name] = {
+                    "eval_turns": metric_dict[metric]["turns"],
+                    "metric_values": metric_dict[metric]["values"],
+                }
 
-    # 3) NDCG@10 in one figure
-    plot_metric(
-        data=data,
-        x_key="eval_turns",
-        y_key="ndcg10",
-        title="NDCG@10 Comparison",
-        y_label="NDCG@10",
-        out_path=FIG_DIR / f"{ts}_ndcg10_comparison.png",
-    )
+        if len(metric_plot_data) == 0:
+            print(f"[Warning] Metric '{metric}' not found in selected logs. Skip.")
+            continue
+
+        safe_metric = _safe_name(metric)
+        plot_metric(
+            data=metric_plot_data,
+            x_key="eval_turns",
+            y_key="metric_values",
+            title=f"{metric} Comparison",
+            y_label=metric,
+            out_path=FIG_DIR / f"{ts}_{safe_metric}_comparison.png",
+        )
 
     print(f"Saved to: {FIG_DIR}")
     print(f"- {ts}_loss_comparison.png")
-    print(f"- {ts}_hr10_comparison.png")
-    print(f"- {ts}_ndcg10_comparison.png")
+    for metric in SELECTED_METRICS:
+        print(f"- {ts}_{_safe_name(metric)}_comparison.png")
 
 
 if __name__ == "__main__":

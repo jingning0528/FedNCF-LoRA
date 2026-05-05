@@ -19,6 +19,7 @@ from .fedncf_lora_deltaB_momentum import FedNCF_Lora_DeltaB_Momentum
 from .fedncf_lora_deltaB_v2 import FedNCF_Lora_DeltaB_V2
 from .fedncf_lora_deltaB_v1 import FedNCF_Lora_DeltaB_V1
 from .fedncf_lora_deltaB_v3 import FedNCF_Lora_DeltaB_V3
+from .fedncf_lora_deltaB_v4 import FedNCF_Lora_DeltaB_V4
 from .fedncf_lora_fixedB import FedNCF_Lora_FixedB
 from .fedncf_lora_lowrankmlp import FedNCF_Lora_LowRankMLP
 from .fedncf_lora_periodicB import FedNCF_Lora_PeriodicB

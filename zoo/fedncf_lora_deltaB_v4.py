@@ -1,5 +1,5 @@
 """
-Delta-B without momentum.
+Delta-B for both PEFT and compressed.
 Original idea: FedAvg for A + ΔB correction, with ΔB updated every few rounds to save communication and stabilize training.
 
 Main fixes in this version:
@@ -273,10 +273,11 @@ class Client(ClientBase):
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
 
-    def upload_model(self, update_delta_B=True):
+    def upload_model(self, update_delta_B=True, compressed=False):
         """
         Upload everything EXCEPT fixed B.
         Skip ΔB if this is not a scheduled ΔB update round.
+        In compressed=True mode, also skip embedding_p because forward_c() does not use it.
         """
         full_state = self.model.state_dict()
         result = {}
@@ -284,6 +285,8 @@ class Client(ClientBase):
         for k, v in full_state.items():
             if 'embedding_item.linear' in k:
                 continue  # fixed B, never upload
+            if compressed and 'embedding_p' in k:
+                continue  # compressed mode does not use base item embedding
             if 'delta_B' in k and not update_delta_B:
                 continue  # save communication on non-ΔB rounds
             result[k] = v.clone()
@@ -331,11 +334,12 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(self, model, delta_B_update_every=10):
+    def __init__(self, model, delta_B_update_every=10, compressed=False):
         super().__init__(model)
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
         self.delta_B_update_every = int(delta_B_update_every)
+        self.compressed = compressed
 
     def count_parameters(self):
         self.model.eval()
@@ -382,6 +386,13 @@ class Server(ServerBase):
                     [m[name] * num for m, num in zip(model_list, num_list)]
                 ) / data_num
 
+            elif 'embedding_p' in name:
+                if self.compressed:
+                    continue  # compressed mode does not aggregate unused base item embedding
+                base_model_dict[name] = sum(
+                    [m[name] * num for m, num in zip(model_list, num_list) if name in m]
+                ) / data_num
+
             elif 'delta_B' in name:
                 if update_delta_B:
                     delta_list = [(m[name], num) for m, num in zip(model_list, num_list) if name in m]
@@ -398,9 +409,10 @@ class Server(ServerBase):
                 # else: keep server ΔB unchanged
 
             else:
-                base_model_dict[name] = sum(
-                    [m[name] * num for m, num in zip(model_list, num_list)]
-                ) / data_num
+                valid = [(m[name], num) for m, num in zip(model_list, num_list) if name in m]
+                if len(valid) == 0:
+                    continue
+                base_model_dict[name] = sum([v * n for v, n in valid]) / sum([n for _, n in valid])
 
                 if cdp is not None and cdp > 0.:
                     base_model_dict[name] += torch.normal(
@@ -429,13 +441,17 @@ class Server(ServerBase):
             self.model.embedding_p.load_state_dict(self.global_model)
         self.model.to(self.model.device)
 
-    def evaluate(self, dataload, user_list):
+    def evaluate(self, dataload, user_list, compressed=False):
         self.model.eval()
         y_pred, y_true, group_id = [], [], []
 
         for user in user_list:
             users, items, labels = dataload.get_testdata(user)
-            y_pred.extend(self.model.forward(users, items).data.cpu().numpy().reshape(-1))
+            if compressed:
+                pred = self.model.forward_c(users, items)
+            else:
+                pred = self.model.forward(users, items)
+            y_pred.extend(pred.data.cpu().numpy().reshape(-1))
             y_true.extend(labels.data.cpu().numpy().reshape(-1))
             group_id.extend(users.data.cpu().numpy().reshape(-1))
 
@@ -450,7 +466,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_DeltaB_V3:
+class FedNCF_Lora_DeltaB_V4:
     """
     No-momentum baseline: standard FedAvg for A + ΔB correction.
     item_emb = embedding_p(i) + (B + delta_scale * ΔB)·A(i)
@@ -505,9 +521,12 @@ class FedNCF_Lora_DeltaB_V3:
 
         self.delta_B_update_every = int(kwargs.get("delta_B_update_every", 10))
 
+        self.compressed = kwargs.get("compressed", False)
+
         self.server = Server(
             server_model,
             delta_B_update_every=self.delta_B_update_every,
+            compressed=self.compressed,
         )
 
         self.client = Client(
@@ -567,7 +586,7 @@ class FedNCF_Lora_DeltaB_V3:
             self.server.global_model = self.server.model.embedding_p.state_dict()
 
         for turn in range(self.train_turn):
-            is_pretrain = (turn < self.ae_warmup_turns)
+            is_pretrain = (turn < self.ae_warmup_turns) and (not self.compressed)
 
             # Important fix:
             # Use phase-2 relative turn, so ΔB update starts exactly when Phase 2 begins.
@@ -609,7 +628,7 @@ class FedNCF_Lora_DeltaB_V3:
                 local_train_time += time.perf_counter() - t0
 
                 losses.append(loss)
-                client_model.append(self.client.upload_model(update_delta_B=update_delta_B))
+                client_model.append(self.client.upload_model(update_delta_B=update_delta_B, compressed=self.compressed))
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
@@ -655,8 +674,8 @@ class FedNCF_Lora_DeltaB_V3:
 
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
-                self.server.evaluate(self.dataload, range(self.user_num))
+                self.server.evaluate(self.dataload, range(self.user_num), compressed=self.compressed)
 
         logging.info("********* Final Test *********")
-        results = self.server.evaluate(self.dataload, range(self.user_num))
+        results = self.server.evaluate(self.dataload, range(self.user_num), compressed=self.compressed)
         return results

@@ -115,7 +115,7 @@ class model(BaseModel):
         self.train()
         # freeze B (shared linear), only train A (emb)
         self.embedding_item.linear.weight.requires_grad_(False)
-        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
+        self.embedding_p.weight.requires_grad_(True)  # ✅ fixed
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
