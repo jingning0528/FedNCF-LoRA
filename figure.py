@@ -27,15 +27,22 @@ SELECTED_LOG_FILES = [
     # "DeltaB_update10_scale0.txt",
     # "DeltaB_update1_scale1_lr3_lamda0.txt",
     # "DeltaB_update0_scale0.txt",
-    "DeltaB_update1_scale0.txt",
-    "DeltaB_update1_scale0.8.txt",
-    "DeltaB_update1_scale1.txt",
-    "DeltaB_update1_scale2.txt",
+    # "DeltaB_update1_scale0.txt",
+    # "DeltaB_update1_scale0.8.txt",
+    # "DeltaB_update1_scale1.txt",
+    # "DeltaB_update1_scale2.txt",
 
-    "DeltaB_update1_scale0_c.txt",
-    "temp.txt",
-
+    # "DeltaB_update1_scale0_c.txt",
+    # "DeltaB_update1_scale2_c.txt",
     # "temp.txt",
+    # "temp2.txt",
+
+    "compressed_rank2.txt",
+    "compressed_rank4.txt",
+    "compressed_rank8.txt",
+    "compressed_rank16.txt",
+
+
 ]
 
 # Select which eval metrics to plot (from logs [Metrics] line)

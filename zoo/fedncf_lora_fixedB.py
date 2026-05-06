@@ -1,5 +1,11 @@
 """
-Fixed B, basic B without Momentum.
+Fixed-B LoRA for FedNCF.
+
+Supports two modes controlled by config `compressed`:
+- compressed=False: item_emb = embedding_p + B(A(item)); embedding_p is warmed up then frozen.
+- compressed=True : item_emb = B(A(item)) only; embedding_p is not used, uploaded, aggregated, or evaluated.
+
+In both modes, B = embedding_item.linear is fixed: it is initialized non-zero, never trained, never uploaded, and never aggregated.
 """
 
 from collections import OrderedDict
@@ -59,7 +65,7 @@ class model(BaseModel):
 
     def __init_weight(self, ):
         nn.init.normal_(self.embedding_item.emb.weight, std=0.1)
-        nn.init.zeros_(self.embedding_item.linear.weight)
+        nn.init.normal_(self.embedding_item.linear.weight, std=0.01)  # fixed B must be non-zero
         nn.init.normal_(self.embedding_user.weight, std=0.1)
         nn.init.normal_(self.embedding_p.weight, std=0.1)
 
@@ -112,57 +118,107 @@ class model(BaseModel):
         return loss
     
     def train_step_triple(self, users, pos, neg, global_model=None):
+        """
+        Phase 2, non-compressed fixed-B LoRA:
+            item_emb = embedding_p + B(A(item))
+        B is fixed, embedding_p is frozen after warmup, only A + user_emb + MLP train.
+        """
         self.train()
-        # freeze B (shared linear), only train A (emb)
-        self.embedding_item.linear.weight.requires_grad_(False)
-        self.embedding_p.weight.requires_grad_(True)  # ✅ fixed
+
+        # Fixed-B LoRA settings
+        self.embedding_item.linear.weight.requires_grad_(False)  # freeze B
+        self.embedding_item.emb.weight.requires_grad_(True)      # train A
+        self.embedding_p.weight.requires_grad_(False)            # freeze base embedding after warmup
+
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
+
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg,) + self.add_regularization_triple(
-                self.embedding_user.weight[users[0]], self.emb_item(pos), self.emb_item(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
+                self.embedding_user.weight[users[0]],
+                self.emb_item(pos),
+                self.emb_item(neg),
+            )
         else:
-            loss = self.loss_fn(pred_pos, pred_neg,)
+            loss = self.loss_fn(pred_pos, pred_neg)
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
 
     def train_step_triple_c(self, users, pos, neg, global_model=None):
+        """
+        Phase 2, compressed fixed-B LoRA:
+            item_emb = B(A(item))
+        B is fixed, embedding_p is unused/frozen, only A + user_emb + MLP train.
+        """
         self.train()
-        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
+
+        # Fixed-B compressed settings
+        self.embedding_item.linear.weight.requires_grad_(False)  # freeze B
+        self.embedding_item.emb.weight.requires_grad_(True)      # train A
+        self.embedding_p.weight.requires_grad_(False)            # not used in compressed mode
+
         self.optimizer.zero_grad()
         pred_pos = self.forward_c(users, pos)
         pred_neg = self.forward_c(users, neg)
+
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item_c(pos), self.emb_item_c(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
+                self.embedding_user.weight[users[0]],
+                self.emb_item_c(pos),
+                self.emb_item_c(neg),
+            )
         else:
-            loss = self.loss_fn(pred_pos, pred_neg, )
+            loss = self.loss_fn(pred_pos, pred_neg)
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
     
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
+        """
+        Warmup stage for non-compressed mode:
+            item_emb = embedding_p only
+        Train embedding_p + user_emb + MLP; freeze A and B.
+        """
         self.train()
-        self.embedding_p.weight.requires_grad_(True)   # ✅ fixed
+
+        self.embedding_item.linear.weight.requires_grad_(False)  # freeze B
+        self.embedding_item.emb.weight.requires_grad_(False)     # freeze A during base warmup
+        self.embedding_p.weight.requires_grad_(True)             # train base item embedding
+
         self.optimizer.zero_grad()
         pred_pos = self.forward_pre(users, pos)
         pred_neg = self.forward_pre(users, neg)
+
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.embedding_p(pos), self.embedding_p(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
+                self.embedding_user.weight[users[0]],
+                self.embedding_p(pos),
+                self.embedding_p(neg),
+            )
         else:
-            loss = self.loss_fn(pred_pos, pred_neg, )
+            loss = self.loss_fn(pred_pos, pred_neg)
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
 
 class Client(ClientBase):
@@ -178,11 +234,20 @@ class Client(ClientBase):
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
 
-    def upload_model(self):
-        """ Only upload A_u (embedding_item.emb), NOT B (embedding_item.linear) """
+    def upload_model(self, compressed=False):
+        """
+        Upload trainable/shared states.
+        - Always skip fixed B: embedding_item.linear.
+        - In compressed=True, also skip embedding_p because forward_c does not use it.
+        """
         full_state = self.model.state_dict()
-        upload_state = {k: v.clone() for k, v in full_state.items()
-                        if 'embedding_item.linear' not in k}
+        upload_state = {}
+        for k, v in full_state.items():
+            if 'embedding_item.linear' in k:
+                continue  # fixed B, never upload
+            if compressed and 'embedding_p' in k:
+                continue  # compressed mode does not use embedding_p
+            upload_state[k] = v.clone()
         return upload_state
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
@@ -222,10 +287,11 @@ class Client(ClientBase):
 
 class Server(ServerBase):
     model: model
-    def __init__(self, model):
+    def __init__(self, model, compressed=False):
         super().__init__(model)
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
+        self.compressed = compressed
         # momentum removed
 
     def count_parameters(self):
@@ -257,6 +323,10 @@ class Server(ServerBase):
         for name in base_model_dict.keys():
             if 'embedding_item.linear' in name:
                 # B is fixed/shared — never updated from clients
+                continue
+
+            elif self.compressed and 'embedding_p' in name:
+                # compressed mode does not use embedding_p, and clients do not upload it
                 continue
 
             elif 'embedding_user' in name:
@@ -303,7 +373,11 @@ class Server(ServerBase):
         group_id = []
         for user in user_list:
             users, items, labels = dataload.get_testdata(user)
-            y_pred.extend(self.model.forward(users, items).data.cpu().numpy().reshape(-1))
+            if self.compressed:
+                pred = self.model.forward_c(users, items)
+            else:
+                pred = self.model.forward(users, items)
+            y_pred.extend(pred.data.cpu().numpy().reshape(-1))
             y_true.extend(labels.data.cpu().numpy().reshape(-1))
             group_id.extend(users.data.cpu().numpy().reshape(-1))
         y_pred = np.array(y_pred, np.float64)
@@ -354,7 +428,8 @@ class FedNCF_Lora_FixedB:
             metrics=metrics,
         )
         server_model.reset_parameters()
-        self.server = Server(server_model)  # beta/eta_s removed
+        self.compressed = kwargs.get("compressed", False)
+        self.server = Server(server_model, compressed=self.compressed)  # beta/eta_s removed
         self.client = Client(client_id=0, model=model(
             user_num=user_num,
             item_num=item_num,
@@ -390,12 +465,12 @@ class FedNCF_Lora_FixedB:
         self.device = device
         self.dataload = dataload
         self.pre_epoch = kwargs["pre_epoch"]
-        self.compressed = kwargs.get("compressed", False)
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
     def fit(self,):
         self.server.count_parameters()
+        logging.info("FixedB mode: compressed={}".format(self.compressed))
         if not self.compressed:
             item_feature = self.dataload.get_item_feature()
             for turn in range(self.pre_epoch):
@@ -424,7 +499,7 @@ class FedNCF_Lora_FixedB:
                 local_train_time += time.perf_counter() - t0
 
                 losses.append(loss)
-                client_model.append(self.client.upload_model())
+                client_model.append(self.client.upload_model(compressed=self.compressed))
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
