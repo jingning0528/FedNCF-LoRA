@@ -1,3 +1,67 @@
+FedNCF_ml1m_triple_101:
+    seed: 2024
+    local_epoch: 2
+    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
+    task: 'triple'
+    train_turn: 1000
+    embedding_dim: 32
+    hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
+    output_dim: 1
+    dropout: 0.5
+    only_inter: false
+    embedding_regularizer: 1.e-8
+    net_regularizer: 1.e-8
+    learning_rate: 1.e-3
+    optimizer: adam
+    loss_fn: 'bpr_loss'
+    pre_epoch: 3000
+    # **ml1m**
+    dataset_id: ML1M_t5
+    dataloader: MLDataLoaderFL
+    clients_num_per_turn: 604
+    # **LoRA**
+    model: FedNCF_Lora
+    latent_dim: 4
+    # **software**
+    # dataset_id: Amazon_software_t5
+    # dataloader: AmazonDataLoaderFL
+    # clients_num_per_turn: 180
+    # **industrial**
+    # dataset_id: Amazon_industrial_t5
+    # dataloader: AmazonDataLoaderFL
+    # clients_num_per_turn: 530
+
+
+FedNCF_ml1m_triple_101_fixedB:
+    seed: 2024
+    local_epoch: 2
+    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
+    task: 'triple'
+    train_turn: 500
+    embedding_dim: 32
+    hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
+    output_dim: 1
+    dropout: 0.5
+    only_inter: false
+    embedding_regularizer: 1.e-8
+    net_regularizer: 1.e-8
+    learning_rate: 1.e-3
+    optimizer: adam
+    loss_fn: 'bpr_loss'
+    pre_epoch: 3000
+    dataset_id: ML1M_t5
+    dataloader: MLDataLoaderFL
+    clients_num_per_turn: 604
+    model: FedNCF_Lora_FixedB
+    latent_dim: 4
+
+
 FedNCF_ml1m_triple_101_deltaB:
     seed: 2024
     local_epoch: 2
@@ -88,32 +152,6 @@ FedNCF_ml1m_triple_101_lowrankmlp:
     latent_dim: 4
     mlp_rank: 4
 
-
-FedNCF_ml1m_triple_101_fixedB:
-    seed: 2024
-    local_epoch: 2
-    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
-    task: 'triple'
-    train_turn: 500
-    embedding_dim: 32
-    hidden_activations: ReLU
-    hidden_units: [64, 128, 64]
-    g_hidden_units: [512, 256, 128]
-    g_hidden_activations: ReLU
-    output_dim: 1
-    dropout: 0.5
-    only_inter: false
-    embedding_regularizer: 1.e-8
-    net_regularizer: 1.e-8
-    learning_rate: 1.e-3
-    optimizer: adam
-    loss_fn: 'bpr_loss'
-    pre_epoch: 3000
-    dataset_id: ML1M_t5
-    dataloader: MLDataLoaderFL
-    clients_num_per_turn: 604
-    model: FedNCF_Lora_FixedB
-    latent_dim: 4
 
 
 
@@ -249,54 +287,6 @@ FedNCF_ml1m_triple_101_fixedB_momentum:
     # hash_senet: False
 
 
-
-
-FedNCF_ml1m_triple_101:
-    seed: 2024
-    local_epoch: 2
-    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
-    task: 'triple'
-    train_turn: 1000
-    embedding_dim: 32
-    hidden_activations: ReLU
-    hidden_units: [64, 128, 64]
-    g_hidden_units: [512, 256, 128]
-    g_hidden_activations: ReLU
-    output_dim: 1
-    dropout: 0.5
-    only_inter: false
-    embedding_regularizer: 1.e-8
-    net_regularizer: 1.e-8
-    learning_rate: 1.e-3
-    optimizer: adam
-    loss_fn: 'bpr_loss'
-    pre_epoch: 3000
-    ## **Dataset**
-    # **ml1m**
-    dataset_id: ML1M_t5
-    dataloader: MLDataLoaderFL
-    clients_num_per_turn: 604
-    # **software**
-    # dataset_id: Amazon_software_t5
-    # dataloader: AmazonDataLoaderFL
-    # clients_num_per_turn: 180
-    # **industrial**
-    # dataset_id: Amazon_industrial_t5
-    # dataloader: AmazonDataLoaderFL
-    # clients_num_per_turn: 530
-    ## **Compressed embedding**
-    # **LoRA**
-    model: FedNCF_Lora
-    latent_dim: 4
-    # **RQ-VAE**
-    # model: FedMF_RPQ
-    # mc_size: 128
-    # cb_size: 3
-    # **Hash**
-    # model: FedMF_Hash
-    # mc_size: 512
-    # cb_size: 2
-    # hash_senet: False
 
 
 

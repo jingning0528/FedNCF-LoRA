@@ -37,10 +37,15 @@ SELECTED_LOG_FILES = [
     # "temp.txt",
     # "temp2.txt",
 
-    "compressed_rank2.txt",
+    # "compressed_rank2.txt",
     "compressed_rank4.txt",
-    "compressed_rank8.txt",
+    # "compressed_rank8.txt",
     "compressed_rank16.txt",
+    "compressed_fixedB_rank16.txt",
+    "compressed_fixedB_rank4.txt",
+
+    # "LoRA_rank4_accuracy.txt",
+    # "FixedB_p.txt",
 
 
 ]
