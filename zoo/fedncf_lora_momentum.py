@@ -1,21 +1,5 @@
 """
-Perifanis V, Efraimidis P S. Federated neural collaborative filtering
-[J]. Knowledge-Based Systems, 2022, 242: 108441.
-
-@article{DBLP:journals/kbs/PerifanisE22,
-  author       = {Vasileios Perifanis and
-                  Pavlos S. Efraimidis},
-  title        = {Federated Neural Collaborative Filtering},
-  journal      = {Knowl. Based Syst.},
-  volume       = {242},
-  pages        = {108441},
-  year         = {2022},
-  url          = {https://doi.org/10.1016/j.knosys.2022.108441},
-  doi          = {10.1016/J.KNOSYS.2022.108441},
-  timestamp    = {Fri, 22 Mar 2024 09:01:07 +0100},
-  biburl       = {https://dblp.org/rec/journals/kbs/PerifanisE22.bib},
-  bibsource    = {dblp computer science bibliography, https://dblp.org}
-}
+Fixed B, basic B with Momentum.
 """
 
 from collections import OrderedDict
@@ -196,8 +180,10 @@ class Client(ClientBase):
     def upload_model(self):
         """ Only upload A_u (embedding_item.emb), NOT B (embedding_item.linear) """
         full_state = self.model.state_dict()
-        upload_state = {k: v.clone() for k, v in full_state.items()
-                        if 'embedding_item.linear' not in k}
+        upload_state = {
+            k: v.clone() for k, v in full_state.items()
+            if 'embedding_item.linear' not in k and 'embedding_p' not in k
+        }
         return upload_state
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
@@ -276,6 +262,10 @@ class Server(ServerBase):
         for name in base_model_dict.keys():
             if 'embedding_item.linear' in name:
                 # B is SHARED/GLOBAL — never updated from clients
+                continue
+
+            elif 'embedding_p' in name:
+                # embedding_p is SHARED/GLOBAL — never updated from clients
                 continue
 
             elif 'embedding_user' in name:
@@ -447,7 +437,11 @@ class FedNCF_Lora_Momentum:
             # self.server.aggregation(select_users, client_model, client_local_data_num, losses)
             self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
             torch.cuda.empty_cache()
+            # ---- evaluate every 10 rounds ----
+            if (turn + 1) % 10 == 0:
+                logging.info("********* Eval @ Turn {} *********".format(turn))
+                self.server.evaluate(self.dataload, range(self.user_num))
 
-        logging.info("********* Test *********")
+        logging.info("********* Final Test *********")
         results = self.server.evaluate(self.dataload, range(self.user_num))
         return results

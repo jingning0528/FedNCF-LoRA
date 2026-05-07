@@ -263,7 +263,7 @@ FedNCF_ml1m_triple_101_FixedB_momentum_warmupB:
                         # Phase 2: B warmup    turns 20-29 (A + B + MLP)
                         # Phase 3: freeze B    turns 30+   (A + MLP only)
 
-FedNCF_ml1m_triple_101_fixedB_momentum:
+FedNCF_ml1m_triple_101_momentum:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -298,7 +298,7 @@ FedNCF_ml1m_triple_101_fixedB_momentum:
     # clients_num_per_turn: 530
     ## **Compressed embedding**
     # **LoRA + Momentum**
-    model: FedNCF_Lora_fixedB_Momentum
+    model: FedNCF_Lora_Momentum
     latent_dim: 4       # rank r, try 2 for more compression
     beta: 0.9           # momentum coefficient
     eta_s: 1.0          # server learning rate
