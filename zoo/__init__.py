@@ -2,3 +2,4 @@ from .fedncf_lora import FedNCF_Lora
 from .fedncf_lora_momentum import FedNCF_Lora_Momentum
 from .fedncf_lora_momentum_3 import FedNCF_Lora_Momentum_3
 from .fedncf_lora_momentum_5 import FedNCF_Lora_Momentum_5
+from .fedncf_lora_fixedB import FedNCF_Lora_FixedB
