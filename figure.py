@@ -15,6 +15,13 @@ FIG_DIR = REPO_ROOT / "figures"
 
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
+
+    "lora_original.txt",
+    "momentum_1.txt",
+    "momentum_3.txt",
+
+
+
     # "LoRA_rank2.txt",
     # "LoRA_rank4.txt",
     # "LoRA_rank8.txt",
@@ -28,10 +35,10 @@ SELECTED_LOG_FILES = [
     # "DeltaB_update1_scale1_lr3_lamda0.txt",
     # "DeltaB_update0_scale0.txt",
 
-    "DeltaB_update1_scale0.txt",
-    "DeltaB_update1_scale0.8.txt",
-    "DeltaB_update1_scale1.txt",
-    "DeltaB_update1_scale2.txt",
+    # "DeltaB_update1_scale0.txt",
+    # "DeltaB_update1_scale0.8.txt",
+    # "DeltaB_update1_scale1.txt",
+    # "DeltaB_update1_scale2.txt",
 
     # "DeltaB_update_every_1_v1.txt", 
     # "DeltaB_update_every_5.txt", 
@@ -54,9 +61,9 @@ SELECTED_LOG_FILES = [
     # "compressed_fixedB_rank4.txt",
     # "compressed_fixedB_rank16.txt",
 
-    "LoRA_rank4_accuracy.txt",
-    "FixedB_p.txt",
-    "DeltaB_Momentum_deltascale0.3.txt",
+    # "LoRA_rank4_accuracy.txt",
+    # "FixedB_p.txt",
+    # "log_old/DeltaB_Momentum_deltascale0.3.txt",
 
 
 ]
