@@ -1,10 +1,10 @@
 ML1M_t5:
-  data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
-  path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
-  model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/
-  # data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
-  # path: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
-  # model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/model/t5/
+  # data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
+  # path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
+  # model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/
+  data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
+  path: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
+  model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/model/t5/
    
   sen_embedding_dim: 768
   user_num: 6040
