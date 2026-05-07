@@ -128,7 +128,7 @@ class model(BaseModel):
         # Fixed-B LoRA settings
         self.embedding_item.linear.weight.requires_grad_(False)  # freeze B
         self.embedding_item.emb.weight.requires_grad_(True)      # train A
-        self.embedding_p.weight.requires_grad_(False)            # freeze base embedding after warmup
+        self.embedding_p.weight.requires_grad_(True)            # freeze base embedding after warmup
 
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
