@@ -128,7 +128,7 @@ class model(BaseModel):
         # Fixed-B LoRA settings
         self.embedding_item.linear.weight.requires_grad_(False)  # freeze B
         self.embedding_item.emb.weight.requires_grad_(True)      # train A
-        self.embedding_p.weight.requires_grad_(True)            # freeze base embedding after warmup
+        self.embedding_p.weight.requires_grad_(False)            # freeze base embedding after warmup
 
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
@@ -245,6 +245,8 @@ class Client(ClientBase):
         for k, v in full_state.items():
             if 'embedding_item.linear' in k:
                 continue  # fixed B, never upload
+            if 'embedding_p' in k:
+                continue
             if compressed and 'embedding_p' in k:
                 continue  # compressed mode does not use embedding_p
             upload_state[k] = v.clone()
@@ -324,6 +326,9 @@ class Server(ServerBase):
             if 'embedding_item.linear' in name:
                 # B is fixed/shared — never updated from clients
                 continue
+
+            elif 'embedding_p' in name:
+                continue    
 
             elif self.compressed and 'embedding_p' in name:
                 # compressed mode does not use embedding_p, and clients do not upload it
