@@ -1,8 +1,8 @@
 """
-Normal LoRA with Momentum on A.
-- embedding_p: trained only during warmup, then frozen as base item embedding
-- A = embedding_item.emb: trainable, uploaded, aggregated with momentum
-- B = embedding_item.linear: trainable, uploaded, aggregated by FedAvg
+Basic LoRA + Momentum.
+No fixed B:
+- A = embedding_item.emb uses momentum aggregation
+- B = embedding_item.linear still uses normal FedAvg
 """
 
 from collections import OrderedDict
@@ -11,12 +11,14 @@ import numpy as np
 import torch.nn as nn
 import torch
 import logging
+import time
 from dataloaders.BaseDataLoader import *
 from framework.fed.client import ClientBase
 from framework.fed.server import ServerBase
-from framework.modules.models import BaseModel, AE
+from framework.modules.models import BaseModel, AE, PQ_VAE, RPQ_VAE
 from framework.modules.layers import MLP_Block
 from framework.utils import calculate_model_size
+from thop import profile
 
 
 class model(BaseModel):
@@ -43,16 +45,14 @@ class model(BaseModel):
             metrics=metrics
         )
 
-        self.embedding_user = nn.Embedding(user_num, embedding_dim)
+        self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
 
-        # LoRA item embedding: A then B
         self.embedding_item = nn.Sequential(OrderedDict([
-            ('emb', nn.Embedding(item_num, latent_dim)),        # A
-            ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),  # B
+            ('emb', nn.Embedding(item_num, latent_dim)), 
+            ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),
         ]))
 
-        # Base item embedding
-        self.embedding_p = nn.Embedding(item_num, embedding_dim)
+        self.embedding_p = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
 
         self.mlp = MLP_Block(
             input_dim=embedding_dim * 2,
@@ -93,6 +93,8 @@ class model(BaseModel):
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
+            return output
+
         return output
 
     def forward_c(self, user_id, item_id):
@@ -105,8 +107,10 @@ class model(BaseModel):
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
-        return output
+            return output
 
+        return output
+    
     def forward_pre(self, user_id, item_id):
         output = self.mlp(torch.cat([
             self.embedding_user(user_id),
@@ -117,6 +121,8 @@ class model(BaseModel):
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
+            return output
+
         return output
 
     def train_step(self, users, items, label, global_model=None):
@@ -134,19 +140,13 @@ class model(BaseModel):
             self.optimizer.step()
 
         return loss
-
+    
     def train_step_triple(self, users, pos, neg, global_model=None):
-        """
-        Normal LoRA training:
-        - embedding_p frozen after warmup
-        - A trainable
-        - B trainable
-        """
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)
-        self.embedding_item.emb.weight.requires_grad_(True)
-        self.embedding_item.linear.weight.requires_grad_(True)
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p after warmup
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: A trainable
+        self.embedding_item.linear.weight.requires_grad_(True)  # CHANGED: B trainable, no fixed B
 
         self.optimizer.zero_grad()
 
@@ -172,16 +172,11 @@ class model(BaseModel):
         return loss
 
     def train_step_triple_c(self, users, pos, neg, global_model=None):
-        """
-        Compressed mode:
-        only LoRA item embedding is used.
-        A and B are both trainable.
-        """
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)
-        self.embedding_item.emb.weight.requires_grad_(True)
-        self.embedding_item.linear.weight.requires_grad_(True)
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: A trainable
+        self.embedding_item.linear.weight.requires_grad_(True)  # CHANGED: B trainable, no fixed B
 
         self.optimizer.zero_grad()
 
@@ -205,17 +200,13 @@ class model(BaseModel):
             self.optimizer.step()
 
         return loss
-
+    
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
-        """
-        Warmup:
-        train base embedding_p before LoRA stage.
-        """
         self.train()
 
-        self.embedding_p.weight.requires_grad_(True)
-        self.embedding_item.emb.weight.requires_grad_(False)
-        self.embedding_item.linear.weight.requires_grad_(False)
+        self.embedding_p.weight.requires_grad_(True)  # CHANGED: correctly train base embedding_p during warmup
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: do not train A during warmup
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: do not train B during warmup
 
         self.optimizer.zero_grad()
 
@@ -256,22 +247,6 @@ class Client(ClientBase):
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
 
-    def upload_model(self):
-        """
-        Normal LoRA:
-        upload A and B.
-        Do not upload embedding_p because it is the frozen base after warmup.
-        """
-        full_state = self.model.state_dict()
-
-        upload_state = {
-            k: v.clone()
-            for k, v in full_state.items()
-            if 'embedding_p' not in k
-        }
-
-        return upload_state
-
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
         self.model.train()
 
@@ -301,12 +276,12 @@ class Client(ClientBase):
 
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
-                    loss = self.model.train_step(users, items, labels, self.global_model)
+                    loss = self.model.train_step(users, items, labels, self.global_model)  # CHANGED: fixed wrong pos/neg
                 else:
                     loss = self.model.train_step(users, items, labels)
 
         return loss
-
+    
     def local_data_num(self):
         return self.__local_data_num
 
@@ -314,17 +289,16 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(self, model, beta=0.9, eta_s=1.0):
+    def __init__(self, model, beta=0.9, eta_s=1.0):  # CHANGED: add beta and eta_s
         super().__init__(model)
 
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
 
-        self.beta = beta
-        self.eta_s = eta_s
+        self.beta = beta  # CHANGED: momentum coefficient
+        self.eta_s = eta_s  # CHANGED: server learning rate
 
-        # momentum only for A
-        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
+        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)  # CHANGED: momentum buffer for A only
 
     def count_parameters(self):
         self.model.eval()
@@ -335,17 +309,17 @@ class Server(ServerBase):
         for name in base_model_dict.keys():
             if "embedding_user" in name:
                 continue
-
-            _, param_size = calculate_model_size(base_model_dict[name])
-            logging.info("Model {} size: {:.8f}MB".format(name, param_size))
-            model_size += param_size
+            else:
+                _, param_size = calculate_model_size(base_model_dict[name])
+                logging.info("Model {} size: {:.8f}MB".format(name, param_size))
+                model_size += param_size
 
         self.model.load_weights(copy.deepcopy(base_model_dict))
         logging.info("Model all size: {:.8f}MB".format(model_size))
-
+    
     def distribute_model(self, user):
         return super().distribute_model()
-
+        
     def aggregation(self, user_list, model_list, num_list, loss_list, cdp=None, ldp=None):
         self.model.eval()
 
@@ -354,20 +328,15 @@ class Server(ServerBase):
 
         for name in base_model_dict.keys():
 
-            if 'embedding_p' in name:
-                # base embedding is frozen after warmup
-                continue
+            if "embedding_user" in name:
+                for model, user in zip(model_list, user_list):
+                    base_model_dict[name].data[user] = model[name].data[user]
 
-            elif 'embedding_user' in name:
-                # local user embedding: only update selected users
-                for m, user in zip(model_list, user_list):
-                    base_model_dict[name].data[user] = m[name].data[user]
-
-            elif 'embedding_item.emb' in name:
-                # A aggregation with momentum
+            elif "embedding_item.emb" in name:
+                # CHANGED: momentum aggregation only for A = embedding_item.emb
                 A_bar = sum([
-                    m[name] * num
-                    for m, num in zip(model_list, num_list)
+                    model[name] * num
+                    for model, num in zip(model_list, num_list)
                 ]) / data_num
 
                 delta_A = A_bar - base_model_dict[name]
@@ -376,11 +345,30 @@ class Server(ServerBase):
 
                 base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
 
+                if cdp is not None and cdp > 0.:
+                    base_model_dict[name] += torch.normal(
+                        0,
+                        cdp,
+                        size=base_model_dict[name].size()
+                    ).to(self.model.device)
+
+                elif ldp is not None and ldp > 0.:
+                    noise_list = [
+                        torch.normal(
+                            0,
+                            ldp,
+                            size=base_model_dict[name].size()
+                        ).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
+                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
+
             else:
-                # B and MLP use normal FedAvg
+                # B = embedding_item.linear and MLP still use normal FedAvg
+                # CHANGED: no fixed B here
                 base_model_dict[name] = sum([
-                    m[name] * num
-                    for m, num in zip(model_list, num_list)
+                    model[name] * num
+                    for model, num in zip(model_list, num_list)
                 ]) / data_num
 
                 if cdp is not None and cdp > 0.:
@@ -460,7 +448,7 @@ class FedNCF_Lora_Momentum_Only:
                  latent_dim,
                  device, 
                  embedding_regularizer, 
-                 net_regularizer, 
+                 net_regularizer,
                  learning_rate,
                  optimizer, 
                  loss_fn,
@@ -490,8 +478,8 @@ class FedNCF_Lora_Momentum_Only:
 
         self.server = Server(
             server_model,
-            beta=float(kwargs.get("beta", 0.9)),
-            eta_s=float(kwargs.get("eta_s", 1.0))
+            beta=float(kwargs.get("beta", 0.9)),  # CHANGED: read beta from YAML
+            eta_s=float(kwargs.get("eta_s", 1.0))  # CHANGED: read eta_s from YAML
         )
 
         self.client = Client(
@@ -520,11 +508,11 @@ class FedNCF_Lora_Momentum_Only:
         self.g_model = AE(
             hidden_units=kwargs["g_hidden_units"],
             hidden_activations=kwargs["g_hidden_activations"],
-            embedding_dim=kwargs["sen_embedding_dim"],
+            embedding_dim=kwargs["sen_embedding_dim"], 
             embedding_dim_latent=embedding_dim,
-            device=device,
-            embedding_regularizer=0.,
-            net_regularizer=1e-2,
+            device=device, 
+            embedding_regularizer=0., 
+            net_regularizer=1e-2, 
             learning_rate=1e-4,
             optimizer="adam",
             loss_fn="mse_loss",
@@ -543,9 +531,13 @@ class FedNCF_Lora_Momentum_Only:
         self.ldp = kwargs.get("ldp", None)
 
     def fit(self):
+        fit_start = time.perf_counter()
+
         self.server.count_parameters()
 
         if not self.compressed:
+            pre_start = time.perf_counter()
+
             item_feature = self.dataload.get_item_feature()
 
             for turn in range(self.pre_epoch):
@@ -556,8 +548,13 @@ class FedNCF_Lora_Momentum_Only:
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
 
+            logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
+
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
+
+            round_start = time.perf_counter()
+            local_train_time = 0.0
 
             select_users = self.server.select_clients(
                 self.user_num,
@@ -572,6 +569,8 @@ class FedNCF_Lora_Momentum_Only:
                 self.client.load_client(user)
                 self.client.load_model(self.server.distribute_model(user))
 
+                t0 = time.perf_counter()
+
                 loss = self.client.local_train(
                     user,
                     self.local_epoch,
@@ -580,9 +579,13 @@ class FedNCF_Lora_Momentum_Only:
                     self.compressed
                 )
 
+                local_train_time += time.perf_counter() - t0
+
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
                 client_local_data_num.append(self.client.local_data_num())
+
+            agg_start = time.perf_counter()
 
             self.server.aggregation(
                 select_users,
@@ -593,13 +596,37 @@ class FedNCF_Lora_Momentum_Only:
                 self.ldp
             )
 
+            agg_time = time.perf_counter() - agg_start
+
             torch.cuda.empty_cache()
+
+            round_time = time.perf_counter() - round_start
+            avg_client_train_time = local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+
+            logging.info(
+                f"[Time] turn={turn} "
+                f"local_train_time={local_train_time:.4f}s "
+                f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"aggregation_time={agg_time:.4f}s "
+                f"round_time={round_time:.4f}s"
+            )
 
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
+
+                eval_start = time.perf_counter()
+
                 self.server.evaluate(self.dataload, range(self.user_num))
 
+                logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
+
         logging.info("********* Final Test *********")
+
+        final_eval_start = time.perf_counter()
+
         results = self.server.evaluate(self.dataload, range(self.user_num))
+
+        logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
+        logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
 
         return results

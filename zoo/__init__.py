@@ -3,6 +3,6 @@ from .fedncf_lora_momentum_3 import FedNCF_Lora_Momentum_3
 from .fedncf_lora_momentum_5 import FedNCF_Lora_Momentum_5
 from .fedncf_lora_fixedB import FedNCF_Lora_FixedB
 
-from .fedncf_lora_momentum_fixedB_2 import FedNCF_Lora_Momentum_FixedB
-from .fedncf_lora_momentum_only_2 import FedNCF_Lora_Momentum_Only
-from .fedncf_lora_fixedB_only_2 import FedNCF_Lora_FixedB_Only
+from .fedncf_lora_momentum_fixedB import FedNCF_Lora_Momentum_FixedB
+from .fedncf_lora_momentum_only import FedNCF_Lora_Momentum_Only
+from .fedncf_lora_fixedB_only import FedNCF_Lora_FixedB_Only
