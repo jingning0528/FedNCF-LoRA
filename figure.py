@@ -17,13 +17,17 @@ FIG_DIR = REPO_ROOT / "figures"
 SELECTED_LOG_FILES = [
 
     "lora_original.txt",
-    "momentum_1.txt",
-    "momentum_1_confirm.txt",
+    # "momentum.txt",
+    # "momentum_1_confirm.txt",
+    "momentum_fixedB.txt",
+    # "momentum_only.txt",
     # "momentum_3.txt",
     # "momentum_3_confirm.txt",
     # "momentum_5_confirm.txt",
-    # "fixedB_p.txt",
+
+    # "fixedB.txt",
     # "fixedB_confirm.txt",
+
 
  
 
