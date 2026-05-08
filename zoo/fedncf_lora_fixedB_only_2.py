@@ -1,5 +1,9 @@
 """
-Fixed B, basic B with Momentum.
+Fixed B LoRA version.
+Minimum changes:
+- Freeze B = embedding_item.linear
+- Do not upload B
+- Do not aggregate B
 """
 
 from collections import OrderedDict
@@ -8,6 +12,7 @@ import numpy as np
 import torch.nn as nn
 import torch
 import logging
+import time
 from dataloaders.BaseDataLoader import *
 from framework.fed.client import ClientBase
 from framework.fed.server import ServerBase
@@ -15,6 +20,7 @@ from framework.modules.models import BaseModel, AE, PQ_VAE, RPQ_VAE
 from framework.modules.layers import MLP_Block
 from framework.utils import calculate_model_size
 from thop import profile
+
 
 class model(BaseModel):
     def __init__(self, 
@@ -33,30 +39,40 @@ class model(BaseModel):
                  loss_fn,
                  metrics,
                  *args, **kwargs):
-        super(__class__, self).__init__(device=device,
-                                  embedding_regularizer=embedding_regularizer, 
-                                  net_regularizer=net_regularizer,
-                                  metrics=metrics)
+        super(__class__, self).__init__(
+            device=device,
+            embedding_regularizer=embedding_regularizer, 
+            net_regularizer=net_regularizer,
+            metrics=metrics
+        )
+
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
-        self.embedding_item = nn.Sequential(OrderedDict([('emb', nn.Embedding(item_num, latent_dim)), 
-                                                      ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),
-                                                      ]))
+
+        self.embedding_item = nn.Sequential(OrderedDict([
+            ('emb', nn.Embedding(item_num, latent_dim)), 
+            ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),
+        ]))
+
         self.embedding_p = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
-        self.mlp = MLP_Block(input_dim = embedding_dim * 2,
-                             output_dim=1,
-                             hidden_units=hidden_units,
-                             hidden_activations=hidden_activations,
-                             dropout_rates=.5,
-                             )
+
+        self.mlp = MLP_Block(
+            input_dim=embedding_dim * 2,
+            output_dim=1,
+            hidden_units=hidden_units,
+            hidden_activations=hidden_activations,
+            dropout_rates=.5,
+        )
+
         self.task = task
         self.fedop = optimizer
-        self.output_activation= nn.Sigmoid()
+        self.output_activation = nn.Sigmoid()
+
         self.reset_parameters()
         self.__init_weight()
         self.compile(optimizer=optimizer, loss=loss_fn, lr=learning_rate)
         self.model_to_device()
 
-    def __init_weight(self, ):
+    def __init_weight(self):
         nn.init.normal_(self.embedding_item.emb.weight, std=0.1)
         nn.init.zeros_(self.embedding_item.linear.weight)
         nn.init.normal_(self.embedding_user.weight, std=0.1)
@@ -69,103 +85,157 @@ class model(BaseModel):
         return self.embedding_item(item_id)
 
     def forward(self, user_id, item_id):
-        output = self.mlp(torch.cat([self.embedding_user(user_id),self.emb_item(item_id)], -1))
+        output = self.mlp(torch.cat([
+            self.embedding_user(user_id),
+            self.emb_item(item_id)
+        ], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
             return output
+
         return output
 
     def forward_c(self, user_id, item_id):
-        output = self.mlp(torch.cat([self.embedding_user(user_id),self.emb_item_c(item_id)], -1))
+        output = self.mlp(torch.cat([
+            self.embedding_user(user_id),
+            self.emb_item_c(item_id)
+        ], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
             return output
+
         return output
     
     def forward_pre(self, user_id, item_id):
-        output = self.mlp(torch.cat([self.embedding_user(user_id),self.embedding_p(item_id)], -1))
+        output = self.mlp(torch.cat([
+            self.embedding_user(user_id),
+            self.embedding_p(item_id)
+        ], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
             return output
+
         return output
 
     def train_step(self, users, items, label, global_model=None):
         self.train()
         self.optimizer.zero_grad()
+
         pred = self.forward(users, items).squeeze()
         loss = self.loss_fn(pred, label, reduction='mean') + self.add_regularization()
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
     
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
-        # freeze B (shared linear), only train A (emb)
-        self.embedding_item.linear.weight.requires_grad_(False)
-        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
+
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze LoRA B
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: keep LoRA A trainable
+
         self.optimizer.zero_grad()
+
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
+
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg,) + self.add_regularization_triple(
-                self.embedding_user.weight[users[0]], self.emb_item(pos), self.emb_item(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
+                self.embedding_user.weight[users[0]],
+                self.emb_item(pos),
+                self.emb_item(neg),
+            )
         else:
-            loss = self.loss_fn(pred_pos, pred_neg,)
+            loss = self.loss_fn(pred_pos, pred_neg)
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
 
     def train_step_triple_c(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.weight.requires_grad_(False)  # ✅ fixed
+
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze LoRA B
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: keep LoRA A trainable
+
         self.optimizer.zero_grad()
+
         pred_pos = self.forward_c(users, pos)
         pred_neg = self.forward_c(users, neg)
+
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item_c(pos), self.emb_item_c(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
+                self.embedding_user.weight[users[0]],
+                self.emb_item_c(pos),
+                self.emb_item_c(neg),
+            )
         else:
-            loss = self.loss_fn(pred_pos, pred_neg, )
+            loss = self.loss_fn(pred_pos, pred_neg)
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
     
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.weight.requires_grad_(True)   # ✅ fixed
+
+        self.embedding_p.weight.requires_grad_(True)  # CHANGED: correctly train base embedding_p during warmup
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: keep B frozen during warmup
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: keep A frozen during warmup
+
         self.optimizer.zero_grad()
+
         pred_pos = self.forward_pre(users, pos)
         pred_neg = self.forward_pre(users, neg)
+
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.embedding_p(pos), self.embedding_p(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
+                self.embedding_user.weight[users[0]],
+                self.embedding_p(pos),
+                self.embedding_p(neg),
+            )
         else:
-            loss = self.loss_fn(pred_pos, pred_neg, )
+            loss = self.loss_fn(pred_pos, pred_neg)
+
         loss.backward()
+
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
+
         return loss
+
 
 class Client(ClientBase):
     model: model
+
     def __init__(self, client_id, model, task, fedop):
         super().__init__(client_id, model)
         self.task = task.lower()
@@ -174,23 +244,27 @@ class Client(ClientBase):
     def load_model(self, model):
         super().load_model(model)
         self.model.to(self.model.device)
+
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
 
     def upload_model(self):
-        """ Only upload A_u (embedding_item.emb), NOT B (embedding_item.linear) """
+        # CHANGED: do not upload fixed B = embedding_item.linear
         full_state = self.model.state_dict()
         upload_state = {
-            k: v.clone() for k, v in full_state.items()
-            if 'embedding_item.linear' not in k and 'embedding_p' not in k
+            k: v.clone()
+            for k, v in full_state.items()
+            if 'embedding_item.linear' not in k
         }
         return upload_state
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
         self.model.train()
+
         if self.task == "triple":
             users, pos, neg = dataload.get_traindata(user)
             self.__local_data_num = users.size(0)
+
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
                     if compressed:
@@ -199,7 +273,6 @@ class Client(ClientBase):
                         loss = self.model.train_step_triple_pre(users, pos, neg, self.global_model)
                     else:
                         loss = self.model.train_step_triple(users, pos, neg, self.global_model)
-
                 else:
                     if compressed:
                         loss = self.model.train_step_triple_c(users, pos, neg)
@@ -207,40 +280,37 @@ class Client(ClientBase):
                         loss = self.model.train_step_triple_pre(users, pos, neg)
                     else:
                         loss = self.model.train_step_triple(users, pos, neg)
+
         else:
             users, items, labels = dataload.get_traindata(user)
             self.__local_data_num = labels.size(0)
+
             for _ in range(local_epoch):
-                if self.fedop == "fedprox":  # ✅ was self.fedprox (AttributeError)
-                    loss = self.model.train_step(users, items, labels, self.global_model)
+                if self.fedop == "fedprox":
+                    loss = self.model.train_step(users, items, labels, self.global_model)  # CHANGED: fixed wrong pos/neg
                 else:
                     loss = self.model.train_step(users, items, labels)
-        # logging.info("Client {} for user {}, train loss: {:.6f}".format(self.client_id, user, loss))
+
         return loss
     
     def local_data_num(self):
         return self.__local_data_num
 
+
 class Server(ServerBase):
     model: model
-    def __init__(self, model, beta=0.9, eta_s=1.0):
+
+    def __init__(self, model):
         super().__init__(model)
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
-        # momentum params
-        self.beta = beta
-        self.eta_s = eta_s
-        # momentum velocity for A (embedding_item.emb), shape: [item_num, latent_dim]
-        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
 
     def count_parameters(self):
-        # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
-        #                                             torch.tensor(1, dtype=torch.int64, device=self.model.device)))
-        # logging.info("FLOPs: {:.8f} MFLOPs".format(flops/ 1e6))
-        # logging.info("Param: {:.8f} M".format(params/ 1e6))
         self.model.eval()
         base_model_dict = copy.deepcopy(self.model.state_dict())
+
         model_size = 0.
+
         for name in base_model_dict.keys():
             if "embedding_user" in name:
                 continue
@@ -248,6 +318,7 @@ class Server(ServerBase):
                 _, param_size = calculate_model_size(base_model_dict[name])
                 logging.info("Model {} size: {:.8f}MB".format(name, param_size))
                 model_size += param_size
+
         self.model.load_weights(copy.deepcopy(base_model_dict))
         logging.info("Model all size: {:.8f}MB".format(model_size))
     
@@ -256,48 +327,46 @@ class Server(ServerBase):
         
     def aggregation(self, user_list, model_list, num_list, loss_list, cdp=None, ldp=None):
         self.model.eval()
+
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
 
         for name in base_model_dict.keys():
-            if 'embedding_item.linear' in name:
-                # B is SHARED/GLOBAL — never updated from clients
+
+            if "embedding_item.linear" in name:
+                # CHANGED: fixed B, do not aggregate B from clients
                 continue
 
-            elif 'embedding_p' in name:
-                # embedding_p is SHARED/GLOBAL — never updated from clients
-                continue
-
-            elif 'embedding_user' in name:
-                # per-user embedding: update only selected users
-                for m, user in zip(model_list, user_list):
-                    base_model_dict[name].data[user] = m[name].data[user]
-
-            elif 'embedding_item.emb' in name:
-                # ===== Shared-B LoRA + Momentum Aggregation for A =====
-                # step 1: weighted average of A_u
-                A_bar = sum([m[name] * num for m, num in zip(model_list, num_list)]) / data_num
-                # step 2: compute delta (change from current A)
-                delta_A = A_bar - base_model_dict[name]
-                # step 3: momentum update on delta  v_A^t = beta * v_A^{t-1} + delta_A^t
-                self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
-                # step 4: A^{t+1} = A^t + eta_s * v_A^t
-                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
-                # ========================================================
+            elif "embedding_user" in name:
+                for model, user in zip(model_list, user_list):
+                    base_model_dict[name].data[user] = model[name].data[user]
 
             else:
-                # mlp, embedding_p: standard FedAvg
-                base_model_dict[name] = sum(
-                    [m[name] * num for m, num in zip(model_list, num_list)]) / data_num
+                base_model_dict[name] = sum([
+                    model[name] * num
+                    for model, num in zip(model_list, num_list)
+                ]) / data_num
+
                 if cdp is not None and cdp > 0.:
                     base_model_dict[name] += torch.normal(
-                        0, cdp, size=base_model_dict[name].size()).to(self.model.device)
+                        0,
+                        cdp,
+                        size=base_model_dict[name].size()
+                    ).to(self.model.device)
+
                 elif ldp is not None and ldp > 0.:
-                    noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(
-                        self.model.device) for _ in range(len(user_list))]
+                    noise_list = [
+                        torch.normal(
+                            0,
+                            ldp,
+                            size=base_model_dict[name].size()
+                        ).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
 
         self.model.load_weights(copy.deepcopy(base_model_dict))
+
         logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
 
     def get_client_model(self, user):
@@ -305,28 +374,44 @@ class Server(ServerBase):
             self.model.embedding_p.load_state_dict(self.models[user])
         else:
             self.model.embedding_p.load_state_dict(self.global_model)
+
         self.model.to(self.model.device)
 
     def evaluate(self, dataload, user_list):
         self.model.eval()
+
         y_pred = []
         y_true = []
         group_id = []
+
         for user in user_list:
             users, items, labels = dataload.get_testdata(user)
+
             y_pred.extend(self.model.forward(users, items).data.cpu().numpy().reshape(-1))
             y_true.extend(labels.data.cpu().numpy().reshape(-1))
             group_id.extend(users.data.cpu().numpy().reshape(-1))
+
         y_pred = np.array(y_pred, np.float64)
         y_true = np.array(y_true, np.float64)
         group_id = np.array(group_id) if len(group_id) > 0 else None
-        val_logs = self.model.evaluate_metrics(y_true, y_pred, self.model.metrcis, group_id)
-        logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
+
+        val_logs = self.model.evaluate_metrics(
+            y_true,
+            y_pred,
+            self.model.metrcis,
+            group_id
+        )
+
+        logging.info('[Metrics] ' + ' - '.join(
+            '{}: {:.6f}'.format(k, v) for k, v in val_logs.items()
+        ))
+
         return val_logs
 
-class FedNCF_Lora_Momentum:
+
+class FedNCF_Lora:
     def __init__(self, 
-                 dataload:BaseDataLoaderFL,
+                 dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 
                  local_epoch, 
                  train_turn,
@@ -345,9 +430,9 @@ class FedNCF_Lora_Momentum:
                  loss_fn,
                  metrics,
                  task,
-                 *args, **kwargs
-                 ):
-        server_model =  model(
+                 *args, **kwargs):
+
+        server_model = model(
             user_num=user_num,
             item_num=item_num,
             embedding_dim=embedding_dim,
@@ -364,41 +449,49 @@ class FedNCF_Lora_Momentum:
             loss_fn=loss_fn,
             metrics=metrics,
         )
+
         server_model.reset_parameters()
-        self.server = Server(
-            server_model,
-            beta=float(kwargs.get("beta", 0.9)),
-            eta_s=float(kwargs.get("eta_s", 1.0))
-        )
-        self.client = Client(client_id=0, model=model(
-            user_num=user_num,
-            item_num=item_num,
-            embedding_dim=embedding_dim,
-            hidden_activations=hidden_activations,
-            hidden_units=hidden_units,
-            output_dim=output_dim,
-            latent_dim=latent_dim,
+
+        self.server = Server(server_model)
+
+        self.client = Client(
+            client_id=0,
+            model=model(
+                user_num=user_num,
+                item_num=item_num,
+                embedding_dim=embedding_dim,
+                hidden_activations=hidden_activations,
+                hidden_units=hidden_units,
+                output_dim=output_dim,
+                latent_dim=latent_dim,
+                task=task.lower(),
+                device=device,
+                embedding_regularizer=embedding_regularizer, 
+                net_regularizer=net_regularizer, 
+                learning_rate=learning_rate,
+                optimizer=optimizer,
+                loss_fn=loss_fn,
+                metrics=metrics,
+            ),
             task=task.lower(),
-            device=device,
-            embedding_regularizer=embedding_regularizer, 
-            net_regularizer=net_regularizer, 
-            learning_rate=learning_rate,
-            optimizer=optimizer,
-            loss_fn=loss_fn,
-            metrics=metrics,
-        ), task=task.lower(), fedop=optimizer.lower()) 
-        self.g_model = AE(hidden_units = kwargs["g_hidden_units"],
-                hidden_activations = kwargs["g_hidden_activations"],
-                embedding_dim = kwargs["sen_embedding_dim"], 
-                embedding_dim_latent = embedding_dim,
-                device = device, 
-                embedding_regularizer=0., 
-                net_regularizer=1e-2, 
-                learning_rate=1e-4,
-                optimizer="adam",
-                loss_fn = "mse_loss",)
+            fedop=optimizer.lower()
+        )
+
+        self.g_model = AE(
+            hidden_units=kwargs["g_hidden_units"],
+            hidden_activations=kwargs["g_hidden_activations"],
+            embedding_dim=kwargs["sen_embedding_dim"], 
+            embedding_dim_latent=embedding_dim,
+            device=device, 
+            embedding_regularizer=0., 
+            net_regularizer=1e-2, 
+            learning_rate=1e-4,
+            optimizer="adam",
+            loss_fn="mse_loss",
+        )
+
         self.clients_num_per_turn = clients_num_per_turn
-        self.local_epoch =  local_epoch
+        self.local_epoch = local_epoch
         self.train_turn = train_turn
         self.user_num = user_num
         self.task = task.lower()
@@ -409,39 +502,103 @@ class FedNCF_Lora_Momentum:
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
-    def fit(self,):
+    def fit(self):
+        fit_start = time.perf_counter()
+
         self.server.count_parameters()
+
         if not self.compressed:
+            pre_start = time.perf_counter()
+
             item_feature = self.dataload.get_item_feature()
+
             for turn in range(self.pre_epoch):
                 loss = self.g_model.train_step(item_feature)
-                # logging.info("loss: {} for iter: {}".format(loss, turn))
+
             latent = self.g_model.get_latent(item_feature)
+
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
-        
+
+            logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
-            select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
+
+            round_start = time.perf_counter()
+            local_train_time = 0.0
+
+            select_users = self.server.select_clients(
+                self.user_num,
+                self.clients_num_per_turn
+            )
+
             client_model = []
             client_local_data_num = []
             losses = []
+
             for user in select_users:
                 self.client.load_client(user)
                 self.client.load_model(self.server.distribute_model(user))
-                loss = self.client.local_train(user, self.local_epoch, self.dataload, turn < 20, self.compressed)
+
+                t0 = time.perf_counter()
+
+                loss = self.client.local_train(
+                    user,
+                    self.local_epoch,
+                    self.dataload,
+                    turn < 20,
+                    self.compressed
+                )
+
+                local_train_time += time.perf_counter() - t0
+
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
                 client_local_data_num.append(self.client.local_data_num())
-            # self.server.aggregation(select_users, client_model, client_local_data_num, losses)
-            self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
+
+            agg_start = time.perf_counter()
+
+            self.server.aggregation(
+                select_users,
+                client_model,
+                client_local_data_num,
+                losses,
+                self.cdp,
+                self.ldp
+            )
+
+            agg_time = time.perf_counter() - agg_start
+
             torch.cuda.empty_cache()
-            # ---- evaluate every 10 rounds ----
+
+            round_time = time.perf_counter() - round_start
+            avg_client_train_time = local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+
+            logging.info(
+                f"[Time] turn={turn} "
+                f"local_train_time={local_train_time:.4f}s "
+                f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"aggregation_time={agg_time:.4f}s "
+                f"round_time={round_time:.4f}s"
+            )
+
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
+
+                eval_start = time.perf_counter()
+
                 self.server.evaluate(self.dataload, range(self.user_num))
 
+                logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
+
         logging.info("********* Final Test *********")
+
+        final_eval_start = time.perf_counter()
+
         results = self.server.evaluate(self.dataload, range(self.user_num))
+
+        logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
+        logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
+
         return results

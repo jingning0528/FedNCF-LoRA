@@ -129,7 +129,7 @@ class model(BaseModel):
     
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.requires_grad_ = True
+        self.embedding_p.requires_grad_ = False
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)

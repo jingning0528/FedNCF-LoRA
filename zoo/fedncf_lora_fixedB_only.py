@@ -392,7 +392,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_FixedB:
+class FedNCF_Lora_FixedB_Only:
     def __init__(self, dataload: BaseDataLoaderFL, clients_num_per_turn,
                  local_epoch, train_turn, user_num, item_num, embedding_dim,
                  hidden_activations, hidden_units, output_dim, latent_dim,
