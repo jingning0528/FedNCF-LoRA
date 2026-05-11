@@ -16,12 +16,19 @@ FIG_DIR = REPO_ROOT / "figures"
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
 
+    "v2_momentum_fixedB.txt",
+    "v2_momentum_only.txt",
+    "v2_fixedB_only.txt",
+
     "lora_original.txt",
+
+
+    # "momentum_fixedB.txt",
+    # "momentum_only.txt",
+    # "fixedB_only.txt",
+
     # "momentum.txt",
     # "momentum_1_confirm.txt",
-    "momentum_fixedB.txt",
-    "momentum_only.txt",
-    "fixedB_only.txt",
     # "momentum_3.txt",
     # "momentum_3_confirm.txt",
     # "momentum_5_confirm.txt",
