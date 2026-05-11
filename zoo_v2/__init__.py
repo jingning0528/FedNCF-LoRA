@@ -1,5 +1,8 @@
 from .fedncf_lora import FedNCF_Lora
 from .fedncf_base import FedNCF_base
+from .fedncf_lora_momentum_3 import FedNCF_Lora_Momentum_3
+from .fedncf_lora_momentum_5 import FedNCF_Lora_Momentum_5
+from .fedncf_lora_fixedB import FedNCF_Lora_FixedB
 
 from .fedncf_lora_momentum_fixedB import FedNCF_Lora_Momentum_FixedB
 from .fedncf_lora_momentum_only import FedNCF_Lora_Momentum_Only
