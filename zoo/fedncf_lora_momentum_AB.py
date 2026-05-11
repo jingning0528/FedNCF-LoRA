@@ -465,7 +465,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_MomentumAB:
+class FedNCF_Lora_Momentum_AB:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 

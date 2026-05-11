@@ -33,6 +33,26 @@ SELECTED_LOG_FILES = [
     "momentum_finetune/momentum_fixedB_0.5_1.0.txt",
 
 
+    # "AB_test/fedncf_momentumB_fixedA.txt",
+    # "AB_test/fedncf_momentumA_fixedB.txt",
+    # "AB_test/fedncf_momentum_AB.txt",
+    # "AB_test/fedncf_momentum_A.txt",
+    # "AB_test/fedncf_momentum_B.txt",
+
+
+    # "heavyball_EMA/Heavy_ball_0.9_1.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.9_1.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.9_3.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.9_6.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.7_10.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.6_15.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.5_20.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.4_30.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.1_50.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.1_100.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.1_200.0.txt",
+
+
 
     # "momentum_fixedB.txt",
     # "momentum_only.txt",

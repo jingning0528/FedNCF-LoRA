@@ -357,7 +357,12 @@ class Server(ServerBase):
 
                 delta_A = A_bar - base_model_dict[name]
 
-                self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
+                # self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
+                # EMA-style momentum
+                self.v_A = (
+                    self.beta * self.v_A.to(A_bar.device)
+                    + (1 - self.beta) * delta_A
+                )
 
                 base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
 
