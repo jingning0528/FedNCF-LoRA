@@ -1,8 +1,9 @@
 """
-Basic LoRA + Momentum.
+Basic LoRA + Momentum on both A and B.
 No fixed B:
 - A = embedding_item.emb uses momentum aggregation
-- B = embedding_item.linear still uses normal FedAvg
+- B = embedding_item.linear uses momentum aggregation
+- MLP and other global parameters still use normal FedAvg
 """
 
 from collections import OrderedDict
@@ -298,7 +299,8 @@ class Server(ServerBase):
         self.beta = beta  # CHANGED: momentum coefficient
         self.eta_s = eta_s  # CHANGED: server learning rate
 
-        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)  # CHANGED: momentum buffer for A only
+        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)  # CHANGED: momentum buffer for A
+        self.v_B = torch.zeros_like(self.model.embedding_item.linear.weight)  # CHANGED: momentum buffer for B
 
     def count_parameters(self):
         self.model.eval()
@@ -333,7 +335,7 @@ class Server(ServerBase):
                     base_model_dict[name].data[user] = model[name].data[user]
 
             elif "embedding_item.emb" in name:
-                # CHANGED: momentum aggregation only for A = embedding_item.emb
+                # CHANGED: momentum aggregation for A = embedding_item.emb
                 A_bar = sum([
                     model[name] * num
                     for model, num in zip(model_list, num_list)
@@ -363,9 +365,39 @@ class Server(ServerBase):
                     ]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
 
+            elif "embedding_item.linear.weight" in name:
+                # CHANGED: momentum aggregation for B = embedding_item.linear.weight
+                B_bar = sum([
+                    model[name] * num
+                    for model, num in zip(model_list, num_list)
+                ]) / data_num
+
+                delta_B = B_bar - base_model_dict[name]
+
+                self.v_B = self.beta * self.v_B.to(B_bar.device) + delta_B
+
+                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_B
+
+                if cdp is not None and cdp > 0.:
+                    base_model_dict[name] += torch.normal(
+                        0,
+                        cdp,
+                        size=base_model_dict[name].size()
+                    ).to(self.model.device)
+
+                elif ldp is not None and ldp > 0.:
+                    noise_list = [
+                        torch.normal(
+                            0,
+                            ldp,
+                            size=base_model_dict[name].size()
+                        ).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
+                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
+
             else:
-                # B = embedding_item.linear and MLP still use normal FedAvg
-                # CHANGED: no fixed B here
+                # CHANGED: MLP and other global parameters still use normal FedAvg
                 base_model_dict[name] = sum([
                     model[name] * num
                     for model, num in zip(model_list, num_list)
@@ -433,7 +465,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_Momentum_Only:
+class FedNCF_Lora_MomentumAB:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 

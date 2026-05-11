@@ -16,12 +16,22 @@ FIG_DIR = REPO_ROOT / "figures"
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
 
-    # "fedncf_momentum_fixedB.txt",
-    # "fedncf_momentum_only.txt",
+    # "fedncf_momentumA_fixedB.txt",
+    # "fedncf_momentum_A.txt",
     # "fedncf_fixedB_only.txt",
 
-    "fedncf_lora.txt",
-    "fedncf_base.txt",
+    # "baseline_1000/fedncf_lora.txt",
+    # "baseline_1000/fedncf_base.txt",
+
+    "baseline_500/fedncf_lora.txt",
+    # "baseline_500/fedncf_base.txt",
+
+    "momentum_finetune/momentum_fixedB_0.99_1.0.txt",
+    "momentum_finetune/momentum_fixedB_0.95_1.0.txt",
+    "momentum_finetune/momentum_fixedB_0.9_1.0.txt",
+    "momentum_finetune/momentum_fixedB_0.7_1.0.txt",
+    "momentum_finetune/momentum_fixedB_0.5_1.0.txt",
+
 
 
     # "momentum_fixedB.txt",
