@@ -27,7 +27,7 @@ FedNCF_ml1m_triple_101:
     model: FedNCF_Lora
     latent_dim: 4
 
-FedNCF_ml1m_triple_101_momentumB_fixedA:
+FedNCF_ml1m_triple_101_momentumA_fixedB:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -52,10 +52,10 @@ FedNCF_ml1m_triple_101_momentumB_fixedA:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    model: FedNCF_Lora_MomentumB_FixedA
+    model: FedNCF_Lora_MomentumA_FixedB
     latent_dim: 4       # rank r, try 2 for more compression
     beta: 0.9           # momentum coefficient
-    eta_s: 1.0          # server learning rate
+    eta_s: 200.0          # server learning rate
 
 FedNCF_ml1m_triple_101_momentum_A:
     seed: 2024
