@@ -23,16 +23,20 @@ SELECTED_LOG_FILES = [
     # "baseline_1000/fedncf_lora.txt",
     # "baseline_1000/fedncf_base.txt",
 
-    "baseline_500/fedncf_lora.txt",
+    # "baseline_500/fedncf_lora.txt",
     # "baseline_500/fedncf_base.txt",
 
-    "momentum_finetune/momentum_fixedB_0.99_1.0.txt",
-    "momentum_finetune/momentum_fixedB_0.95_1.0.txt",
-    "momentum_finetune/momentum_fixedB_0.9_1.0.txt",
-    "momentum_finetune/momentum_fixedB_0.7_1.0.txt",
-    "momentum_finetune/momentum_fixedB_0.5_1.0.txt",
+    "baseline_200/fedncf_lora.txt",
+    # "baseline_200/fedncf_base.txt",
 
+    # "momentum_finetune/momentum_fixedB_0.999_1.0.txt",
+    # "momentum_finetune/momentum_fixedB_0.99_1.0.txt",
+    # "momentum_finetune/momentum_fixedB_0.95_1.0.txt",
+    # "momentum_finetune/momentum_fixedB_0.9_1.0.txt",
+    # "momentum_finetune/momentum_fixedB_0.7_1.0.txt",
+    # "momentum_finetune/momentum_fixedB_0.5_1.0.txt",
 
+    # AB test
     # "AB_test/fedncf_momentumB_fixedA.txt",
     # "AB_test/fedncf_momentumA_fixedB.txt",
     # "AB_test/fedncf_momentum_AB.txt",
@@ -40,17 +44,82 @@ SELECTED_LOG_FILES = [
     # "AB_test/fedncf_momentum_B.txt",
 
 
+    # ********************************Heavyball and EMA*****************************
+    # "heavyball_EMA/Heavy_ball_0.99_2.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_20.0.txt",
+
+    # ********************************Heavyball*****************************
+    # "heavyball_EMA/Heavy_ball_0.9_0.5.txt",
     # "heavyball_EMA/Heavy_ball_0.9_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.9_2.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.9_3.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_0.5.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_2.0.txt", #best
+    # "heavyball_EMA/Heavy_ball_0.99_3.0.txt", 
+
+    # "heavyball_EMA/Heavy_ball_0.99_0.5.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_2.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_3.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_5.0.txt",
+
+    # "heavyball_EMA/Heavy_ball_0.5_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.7_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.9_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.95_1.0.txt",
+    # "heavyball_EMA/Heavy_ball_0.99_1.0.txt",
+
+    "heavyball_EMA/Heavy_ball_0.5_2.0.txt",
+    "heavyball_EMA/Heavy_ball_0.7_2.0.txt",
+    "heavyball_EMA/Heavy_ball_0.9_2.0.txt",
+    "heavyball_EMA/Heavy_ball_0.95_2.0.txt",
+    "heavyball_EMA/Heavy_ball_0.99_2.0.txt",
+    "heavyball_EMA/Heavy_ball_0.999_2.0.txt",
+
+ 
+    # ********************************EMA Normalization*****************************
+    # "heavyball_EMA/EMA_normalization_0.8_1.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_10.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_20.0.txt", #best
+
+    # "heavyball_EMA/EMA_normalization_0.95_1.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.95_10.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.95_20.0.txt", 
+
     # "heavyball_EMA/EMA_normalization_0.9_1.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.9_3.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.9_6.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.7_10.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.6_15.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.9_10.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.9_20.0.txt",
+
+    # "heavyball_EMA/EMA_normalization_0.8_1.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_10.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_20.0.txt",
+    
+    # "heavyball_EMA/EMA_normalization_0.8_1.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_10.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_20.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_30.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_50.0.txt",
+
+    # "heavyball_EMA/EMA_normalization_0.95_20.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.9_20.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.8_20.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.7_20.0.txt",
     # "heavyball_EMA/EMA_normalization_0.5_20.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.4_30.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.1_50.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.1_100.0.txt",
-    # "heavyball_EMA/EMA_normalization_0.1_200.0.txt",
+    # "heavyball_EMA/EMA_normalization_0.1_20.0.txt",
+
+    # "heavyball_EMA/EMA_normalization_0.7_20.0.txt", 
+    # "heavyball_EMA/abandon/EMA_normalization_0.7_10.0.txt", 
+
+    # "heavyball_EMA/abandon/EMA_normalization_0.5_1.0.txt", 
+    
+    # "heavyball_EMA/abandon/EMA_normalization_0.5_50.0.txt",
+    # "heavyball_EMA/abandon/EMA_normalization_0.1_1.0.txt", 
+
+    # "heavyball_EMA/abandon/EMA_normalization_0.1_50.0.txt",
+
+
+
 
 
 
