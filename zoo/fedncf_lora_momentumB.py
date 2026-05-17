@@ -1,9 +1,8 @@
 """
-Fixed B LoRA version.
-Minimum changes:
-- Freeze B = embedding_item.linear
-- Do not upload B
-- Do not aggregate B
+Basic LoRA + Momentum on B only.
+No fixed B:
+- A = embedding_item.emb uses normal FedAvg
+- B = embedding_item.linear uses momentum aggregation
 """
 
 from collections import OrderedDict
@@ -145,9 +144,9 @@ class model(BaseModel):
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
-        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze LoRA B
-        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: keep LoRA A trainable
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p after warmup
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: A trainable
+        self.embedding_item.linear.weight.requires_grad_(True)  # CHANGED: B trainable, no fixed B
 
         self.optimizer.zero_grad()
 
@@ -176,8 +175,8 @@ class model(BaseModel):
         self.train()
 
         self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
-        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze LoRA B
-        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: keep LoRA A trainable
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: A trainable
+        self.embedding_item.linear.weight.requires_grad_(True)  # CHANGED: B trainable, no fixed B
 
         self.optimizer.zero_grad()
 
@@ -206,8 +205,8 @@ class model(BaseModel):
         self.train()
 
         self.embedding_p.weight.requires_grad_(True)  # CHANGED: correctly train base embedding_p during warmup
-        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: keep B frozen during warmup
-        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: keep A frozen during warmup
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: do not train A during warmup
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: do not train B during warmup
 
         self.optimizer.zero_grad()
 
@@ -247,16 +246,6 @@ class Client(ClientBase):
 
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
-
-    def upload_model(self):
-        # CHANGED: do not upload fixed B = embedding_item.linear
-        full_state = self.model.state_dict()
-        upload_state = {
-            k: v.clone()
-            for k, v in full_state.items()
-            if 'embedding_item.linear' not in k
-        }
-        return upload_state
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
         self.model.train()
@@ -300,10 +289,16 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(self, model):
+    def __init__(self, model, beta=0.9, eta_s=1.0):  # CHANGED: add beta and eta_s
         super().__init__(model)
+
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
+
+        self.beta = beta  # CHANGED: momentum coefficient
+        self.eta_s = eta_s  # CHANGED: server learning rate
+
+        self.v_B = torch.zeros_like(self.model.embedding_item.linear.weight)  # CHANGED: momentum buffer for B only
 
     def count_parameters(self):
         self.model.eval()
@@ -333,15 +328,44 @@ class Server(ServerBase):
 
         for name in base_model_dict.keys():
 
-            if "embedding_item.linear" in name:
-                # CHANGED: fixed B, do not aggregate B from clients
-                continue
-
-            elif "embedding_user" in name:
+            if "embedding_user" in name:
                 for model, user in zip(model_list, user_list):
                     base_model_dict[name].data[user] = model[name].data[user]
 
+            elif "embedding_item.linear.weight" in name:
+                # CHANGED: momentum aggregation only for B = embedding_item.linear.weight
+                B_bar = sum([
+                    model[name] * num
+                    for model, num in zip(model_list, num_list)
+                ]) / data_num
+
+                delta_B = B_bar - base_model_dict[name]
+
+                self.v_B = self.beta * self.v_B.to(B_bar.device) + delta_B
+
+                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_B
+
+                if cdp is not None and cdp > 0.:
+                    base_model_dict[name] += torch.normal(
+                        0,
+                        cdp,
+                        size=base_model_dict[name].size()
+                    ).to(self.model.device)
+
+                elif ldp is not None and ldp > 0.:
+                    noise_list = [
+                        torch.normal(
+                            0,
+                            ldp,
+                            size=base_model_dict[name].size()
+                        ).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
+                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
+
             else:
+                # CHANGED: A = embedding_item.emb and MLP use normal FedAvg
+                # B uses momentum in the block above
                 base_model_dict[name] = sum([
                     model[name] * num
                     for model, num in zip(model_list, num_list)
@@ -409,7 +433,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_FixedB_Only:
+class FedNCF_Lora_MomentumB:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -424,7 +448,7 @@ class FedNCF_Lora_FixedB_Only:
                  latent_dim,
                  device, 
                  embedding_regularizer, 
-                 net_regularizer, 
+                 net_regularizer,
                  learning_rate,
                  optimizer, 
                  loss_fn,
@@ -452,7 +476,11 @@ class FedNCF_Lora_FixedB_Only:
 
         server_model.reset_parameters()
 
-        self.server = Server(server_model)
+        self.server = Server(
+            server_model,
+            beta=float(kwargs.get("beta", 0.9)),  # CHANGED: read beta from YAML
+            eta_s=float(kwargs.get("eta_s", 1.0))  # CHANGED: read eta_s from YAML
+        )
 
         self.client = Client(
             client_id=0,

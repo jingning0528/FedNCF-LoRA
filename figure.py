@@ -21,22 +21,26 @@ SELECTED_LOG_FILES = [
     # "baseline_1000/fedncf_lora.txt",
     # "baseline_1000/fedncf_base.txt",
 
-    "baseline_500/fedncf_lora.txt",
-    "baseline_500/fedncf_base.txt",
+    # "baseline_500/fedncf_lora.txt",
+    # "baseline_500/fedncf_base.txt",
 
-    # "baseline_200/fedncf_lora.txt",
+    "baseline_200/fedncf_lora.txt",
     # "baseline_200/fedncf_base.txt",
 
     # **************************************AB test********************************
     # "AB_test/fedncf_momentumB_fixedA.txt",
     # "AB_test/fedncf_momentumA_fixedB.txt",
-    # "AB_test/fedncf_momentum_AB.txt",
-    # "AB_test/fedncf_momentum_A.txt",
-    # "AB_test/fedncf_momentum_B.txt",
 
-    # "fedncf_momentumA_fixedB.txt",
-    # "fedncf_momentum_A.txt",
-    # "fedncf_fixedB_only.txt",
+    # "AB_test/fedncf_momentumAB.txt",
+    # "AB_test/fedncf_momentumA.txt",
+    # "AB_test/fedncf_momentumB.txt",
+    
+    # "AB_test/fedncf_fixedB.txt",
+    # "AB_test/fedncf_momentumA.txt",
+    # "AB_test/fedncf_momentumA_fixedB.txt",
+
+    # "AB_test/fedncf_fixedA.txt",
+    # "AB_test/fedncf_fixedB.txt",
 
     # ********************************Finetune Best Result*****************************
     # "finetune/heavyball/Heavy_ball_0.99_2.0.txt",
@@ -50,8 +54,11 @@ SELECTED_LOG_FILES = [
     # "finetune/adam/Adam_0.1_0.95_0.999.txt",
     # "finetune/adam/Adam_0.05_0.95_0.999.txt", #0.05>0.1 0.95>0.9 
     # "finetune/adam/Adam_0.05_0.95_0.99.txt",
-    # "finetune/adam/Adam_0.05_0.99_0.99.txt",
+    
     # "finetune/adam/Adam_0.05_0.99_0.9.txt", # 0.05>0.1 0.99>0.95>0.9 0.9==0.99
+
+
+    # "finetune/adam/Adam_0.05_0.99_0.99.txt",
     # "finetune/adam/Adam_0.01_0.99_0.99.txt",
     # "finetune/adam/Adam_0.005_0.99_0.99.txt", #best
 
@@ -76,6 +83,7 @@ SELECTED_LOG_FILES = [
     # "finetune/heavyball/Heavy_ball_0.9_1.0.txt",
     # "finetune/heavyball/Heavy_ball_0.95_1.0.txt",
     # "finetune/heavyball/Heavy_ball_0.99_1.0.txt",
+
     # "finetune/heavyball/Heavy_ball_0.5_2.0.txt",
     # "finetune/heavyball/Heavy_ball_0.7_2.0.txt",
     # "finetune/heavyball/Heavy_ball_0.9_2.0.txt",
@@ -105,12 +113,13 @@ SELECTED_LOG_FILES = [
     # "finetune/ema/EMA_normalization_0.8_20.0.txt",
     # "finetune/ema/EMA_normalization_0.8_30.0.txt",
     # "finetune/ema/EMA_normalization_0.8_50.0.txt",
-    # "finetune/ema/EMA_normalization_0.95_20.0.txt",
-    # "finetune/ema/EMA_normalization_0.9_20.0.txt",
-    # "finetune/ema/EMA_normalization_0.8_20.0.txt",
-    # "finetune/ema/EMA_normalization_0.7_20.0.txt",
-    # "finetune/ema/EMA_normalization_0.5_20.0.txt",
-    # "finetune/ema/EMA_normalization_0.1_20.0.txt",
+
+    "finetune/ema/EMA_normalization_0.95_20.0.txt",
+    "finetune/ema/EMA_normalization_0.9_20.0.txt",
+    "finetune/ema/EMA_normalization_0.8_20.0.txt",
+    "finetune/ema/EMA_normalization_0.7_20.0.txt",
+    "finetune/ema/EMA_normalization_0.5_20.0.txt",
+    "finetune/ema/EMA_normalization_0.1_20.0.txt",
 
     # "finetune/ema/EMA_normalization_0.7_20.0.txt", 
     # "finetune/ema/abandon/EMA_normalization_0.7_10.0.txt", 

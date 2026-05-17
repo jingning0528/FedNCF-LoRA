@@ -2,14 +2,15 @@ from .fedncf_lora import FedNCF_Lora
 from .fedncf_base import FedNCF_base
 
 
-from .fedncf_lora_fixedB_only import FedNCF_Lora_FixedB_Only
+from .fedncf_lora_fixedB import FedNCF_Lora_FixedB
 from .fedncf_lora_fixedA import FedNCF_Lora_FixedA
 
-from .fedncf_lora_momentum_A import FedNCF_Lora_Momentum_A
-from .fedncf_lora_momentum_B import FedNCF_Lora_Momentum_B
-from .fedncf_lora_momentum_AB import FedNCF_Lora_Momentum_AB
+from .fedncf_lora_momentumA import FedNCF_Lora_MomentumA
+from .fedncf_lora_momentumB import FedNCF_Lora_MomentumB
+from .fedncf_lora_momentumAB import FedNCF_Lora_MomentumAB
 
 from .fedncf_lora_momentumA_fixedB import FedNCF_Lora_MomentumA_FixedB
 from .fedncf_lora_momentumB_fixedA import FedNCF_Lora_MomentumB_FixedA
 
 from .fedncf_lora_momentumA_fixedB_finetune import FedNCF_Lora_MomentumA_FixedB_Finetune
+from .fedncf_lora_analyze import FedNCF_Lora_Analyze
