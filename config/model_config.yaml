@@ -54,9 +54,9 @@ FedNCF_ml1m_triple_101_momentumA_fixedB_finetune:
     clients_num_per_turn: 604
     model: FedNCF_Lora_MomentumA_FixedB_Finetune
     latent_dim: 4       # rank r, try 2 for more compression
-    beta: 0.9           # momentum coefficient
-    eta_s: 10.0          # server learning rate
-    server_optimizer: adam # options: "ema" or "heavy_ball"
+    beta: 0.99           # momentum coefficient
+    eta_s: 2.0          # server learning rate
+    server_optimizer: heavy_ball # options: "adam", "ema" or "heavy_ball"
     eta_s: 0.5
     server_adam_beta1: 0.9
     server_adam_beta2: 0.99
