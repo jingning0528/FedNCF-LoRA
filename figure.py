@@ -18,13 +18,16 @@ SELECTED_LOG_FILES = [
 
 
     # **************************************baseline********************************
-    # "baseline_1000/fedncf_lora.txt",
-    # "baseline_1000/fedncf_base.txt",
+    
+    "baseline_1000/fedncf_base.txt",
+    "baseline_1000/fedncf_lora.txt",
+    # "baseline_1000/momentumA_fixedB.txt",
+    # "AB_test/fedncf_fixedB_1000.txt",
 
     # "baseline_500/fedncf_lora.txt",
     # "baseline_500/fedncf_base.txt",
 
-    "baseline_200/fedncf_lora.txt",
+    # "baseline_200/fedncf_lora.txt",
     # "baseline_200/fedncf_base.txt",
 
     # **************************************AB test********************************
@@ -114,12 +117,12 @@ SELECTED_LOG_FILES = [
     # "finetune/ema/EMA_normalization_0.8_30.0.txt",
     # "finetune/ema/EMA_normalization_0.8_50.0.txt",
 
-    "finetune/ema/EMA_normalization_0.95_20.0.txt",
-    "finetune/ema/EMA_normalization_0.9_20.0.txt",
-    "finetune/ema/EMA_normalization_0.8_20.0.txt",
-    "finetune/ema/EMA_normalization_0.7_20.0.txt",
-    "finetune/ema/EMA_normalization_0.5_20.0.txt",
-    "finetune/ema/EMA_normalization_0.1_20.0.txt",
+    # "finetune/ema/EMA_normalization_0.95_20.0.txt",
+    # "finetune/ema/EMA_normalization_0.9_20.0.txt",
+    # "finetune/ema/EMA_normalization_0.8_20.0.txt",
+    # "finetune/ema/EMA_normalization_0.7_20.0.txt",
+    # "finetune/ema/EMA_normalization_0.5_20.0.txt",
+    # "finetune/ema/EMA_normalization_0.1_20.0.txt",
 
     # "finetune/ema/EMA_normalization_0.7_20.0.txt", 
     # "finetune/ema/abandon/EMA_normalization_0.7_10.0.txt", 
