@@ -2,18 +2,26 @@
 preprocess with PLM
 """
 
+import os
+from pathlib import Path
 import torch
 from sentence_transformers import SentenceTransformer
 import pandas as pd
 
-review_path = '/data/Amazon/5-core/'
-review_path_clip = '/data/Amazon/5-core_clip/'
-graph_path = '/data/Amazon/graph/'
+BASE_DIR = Path("./data/Amazon").resolve()
+review_path = str(BASE_DIR / "5-core") + "/"
+review_path_clip = str(BASE_DIR / "5-core_clip") + "/"
+graph_path = str(BASE_DIR / "graph") + "/"
+meta_path = str(BASE_DIR / "meta" / "meta_")
+meta_path_clip = str(BASE_DIR / "meta_processed" / "t5") + "/"
 
-meta_path = '/data/Amazon/meta/meta_'
+os.makedirs(review_path_clip, exist_ok=True)
+os.makedirs(graph_path, exist_ok=True)
+os.makedirs(meta_path_clip, exist_ok=True)
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
-meta_path_clip = '/data/Amazon/meta_processed/t5/'
-model = SentenceTransformer('/data/llm/sentence-t5-base', device=device)
+model_name = os.getenv("ST_MODEL", "sentence-transformers/sentence-t5-base")
+model = SentenceTransformer(model_name, device=device)
 
 categories = [
     "All_Beauty",
@@ -113,6 +121,6 @@ def pre_process_meta(field:str, meta_data, items):
     print(embedding.shape)
     torch.save(embedding, meta_path_clip + field + '.pth')
 
-for field in ["All_Beauty", "Industrial_and_Scientific","Video_Games", "Digital_Music",  "Software",]:
+for field in ["Software", "Industrial_and_Scientific"]:
     meta_data, items = pre_process_review(field)
     pre_process_meta(field, meta_data, items)

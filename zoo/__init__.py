@@ -15,3 +15,5 @@ from .fedncf_lora_momentumB_fixedA import FedNCF_Lora_MomentumB_FixedA
 from .fedncf_lora_momentumA_fixedB_finetune import FedNCF_Lora_MomentumA_FixedB_Finetune
 from .fedncf_lora_momentumA_fixedB_finetune_analyze import FedNCF_Lora_MomentumA_FixedB_Finetune_Analyze
 from .fedncf_lora_analyze import FedNCF_Lora_Analyze
+
+from .fedncf_full_momentum import FedNCF_Full_Momentum

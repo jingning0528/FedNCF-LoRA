@@ -5,10 +5,27 @@ ML1M_t5:
   data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
   path: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
   model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/model/t5/
-   
   sen_embedding_dim: 768
   user_num: 6040
   item_num: 3952
+
+
+Amazon_software_t5:
+  data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
+  path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
+  model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/
+  # data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
+  # path: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
+  # model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/model/t5/
+  data_dir: /data/Amazon/
+  meta_dir: /data/Amazon/meta_processed/t5/
+  model_dir: /data/Amazon/model/t5/Software/
+  field: Software
+  path: /data/Amazon/graph/Software
+  sen_embedding_dim: 768
+  user_num: 1826
+  item_num: 802
+
 
 Amazon_fashion_t5:
   data_dir: /data/Amazon/
@@ -91,12 +108,3 @@ Amazon_music_t5:
   user_num: 16566
   item_num: 11797
 
-Amazon_software_t5:
-  data_dir: /data/Amazon/
-  meta_dir: /data/Amazon/meta_processed/t5/
-  model_dir: /data/Amazon/model/t5/Software/
-  field: Software
-  path: /data/Amazon/graph/Software
-  sen_embedding_dim: 768
-  user_num: 1826
-  item_num: 802

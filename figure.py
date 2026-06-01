@@ -19,10 +19,15 @@ SELECTED_LOG_FILES = [
 
     # **************************************baseline********************************
     
-    "baseline_1000/fedncf_base.txt",
-    "baseline_1000/fedncf_lora.txt",
-    # "baseline_1000/momentumA_fixedB.txt",
-    # "AB_test/fedncf_fixedB_1000.txt",
+
+
+    # "baseline_1000/FedNCF-Full.txt",
+    # "baseline_1000/FedNCF-LoRA.txt",
+    # "baseline_1000/MofiLoRA.txt",
+
+    "baseline_2000/FedNCF-Full.txt",
+    "baseline_2000/FedNCF-LoRA.txt",
+    # "baseline_2000/MofiLoRA.txt",
 
     # "baseline_500/fedncf_lora.txt",
     # "baseline_500/fedncf_base.txt",
@@ -30,20 +35,65 @@ SELECTED_LOG_FILES = [
     # "baseline_200/fedncf_lora.txt",
     # "baseline_200/fedncf_base.txt",
 
-    # **************************************AB test********************************
-    # "AB_test/fedncf_momentumB_fixedA.txt",
-    # "AB_test/fedncf_momentumA_fixedB.txt",
+    # **************************************EMA Finetune 1000********************************
 
-    # "AB_test/fedncf_momentumAB.txt",
+    # "finetune_1000/ema/ema_0.9_5.0.txt",
+    # "finetune_1000/ema/ema_0.9_10.0.txt",
+    # "finetune_1000/ema/ema_0.9_20.0.txt",
+
+    # "finetune_1000/ema/ema_0.8_10.0.txt",
+    # "finetune_1000/ema/ema_0.9_10.0.txt",
+    # "finetune_1000/ema/ema_0.99_10.0.txt",
+
+    # "finetune_1000/ema/ema_0.8_5.0.txt",
+    # "finetune_1000/ema/ema_0.8_10.0.txt",
+    # "finetune_1000/ema/ema_0.8_20.0.txt",
+    
+    # "finetune_1000/ema/ema_0.5_10.0.txt",
+    # "finetune_1000/ema/ema_0.7_10.0.txt",
+    # "finetune_1000/ema/ema_0.95_10.0.txt",
+    # "finetune_1000/ema/ema_0.97_10.0.txt",
+
+    # **************************************Heavyball Finetune 1000********************************
+    # "finetune_1000/heavyball/beta=0.9, ηs=0.5.txt",
+    # "finetune_1000/heavyball/beta=0.9, ηs=1.0.txt",
+    # "finetune_1000/heavyball/beta=0.9, ηs=2.0.txt",
+    
+    # "finetune_1000/heavyball/beta=0.8, ηs=1.0.txt",
+    # "finetune_1000/heavyball/beta=0.9, ηs=1.0.txt",
+    # "finetune_1000/heavyball/beta=0.99, ηs=1.0.txt",
+
+    # "finetune_1000/heavyball/heavyball_0.99_2.0.txt",
+
+    # **************************************AB test 1000********************************
+    # "AB_test_1000/LoRA-FixedA.txt",
+    # "AB_test_1000/LoRA-FixedB.txt",
+
+    # "AB_test_1000/LoRA-MomA.txt",
+    # "AB_test_1000/LoRA-MomB.txt",
+
+    # "AB_test_1000/LoRA-MomB-FixedA.txt",
+    # "AB_test_1000/LoRA-MomA-FixedB.txt",
+
+    # "AB_test_1000/LoRA-FixedB.txt",
+    # "AB_test_1000/LoRA-MomA.txt",
+    # "AB_test_1000/LoRA-MomA-FixedB.txt",
+
+    # **************************************AB test********************************
+    # "AB_test/fedncf_fixedA.txt",
+    # "AB_test/fedncf_fixedB.txt",
+
     # "AB_test/fedncf_momentumA.txt",
     # "AB_test/fedncf_momentumB.txt",
+
+    # "AB_test/fedncf_momentumB_fixedA.txt",
+    # "AB_test/fedncf_momentumA_fixedB.txt",
     
     # "AB_test/fedncf_fixedB.txt",
     # "AB_test/fedncf_momentumA.txt",
     # "AB_test/fedncf_momentumA_fixedB.txt",
 
-    # "AB_test/fedncf_fixedA.txt",
-    # "AB_test/fedncf_fixedB.txt",
+
 
     # ********************************Finetune Best Result*****************************
     # "finetune/heavyball/Heavy_ball_0.99_2.0.txt",
@@ -132,71 +182,6 @@ SELECTED_LOG_FILES = [
     # "finetune/ema/abandon/EMA_normalization_0.1_1.0.txt", 
     # "finetune/ema/abandon/EMA_normalization_0.1_50.0.txt",
 
-
-    # *******************************Delta B*****************************
-    # "log_v1/DeltaB_update_every_1.txt", 
-    # "log_v1/DeltaB_update_every_5.txt", 
-    # "log_v1/DeltaB_update_every_15.txt", 
-    # "log_v1/DeltaB_update_every_20.txt",
-
-    # "log_v1/DeltaB_update1_scale0.txt",
-    # "log_v1/DeltaB_update1_scale0.8.txt",
-    # "log_v1/DeltaB_update1_scale1.txt",
-    # "log_v1/DeltaB_update1_scale2.txt",
-
-    # "momentum_fixedB.txt",
-    # "momentum_only.txt",
-    # "fixedB_only.txt",
-
-    # "momentum.txt",
-    # "momentum_1_confirm.txt",
-    # "momentum_3.txt",
-    # "momentum_3_confirm.txt",
-    # "momentum_5_confirm.txt",
-
-    # "fixedB.txt",
-    # "fixedB_confirm.txt",
-
-
- 
-
-
-
-    # "LoRA_rank2.txt",
-    # "LoRA_rank4.txt",
-    # "LoRA_rank8.txt",
-    # "LoRA_rank16.txt",
-
-    # "LoRA_rank4_accuracy.txt",
-    # "DeltaB_update_every_10_v1.txt", # delta_scale=0.3, update_every=10
-    # "FixedB_p.txt",
-
-    # "DeltaB_update10_scale0.txt",
-    # "DeltaB_update1_scale1_lr3_lamda0.txt",
-    # "DeltaB_update0_scale0.txt",
-
-
-
- 
-
-    # "DeltaB_update1_scale0_c.txt",
-    # "DeltaB_update1_scale2_c.txt",
-    # "temp.txt",
-    # "temp2.txt",
-
-    # "compressed_rank2.txt",
-    # "compressed_rank4.txt",
-    # "compressed_rank4_1000.txt",
-    # "compressed_rank8.txt",
-    # "compressed_rank16.txt",
-    # "compressed_rank16_1000.txt",
-    
-    # "compressed_fixedB_rank4.txt",
-    # "compressed_fixedB_rank16.txt",
-
-    # "LoRA_rank4_accuracy.txt",
-    # "FixedB_p.txt",
-    # "log_old/DeltaB_Momentum_deltascale0.3.txt",
 
 
 ]
@@ -305,7 +290,7 @@ def sample_every_n_rounds(x, y, n=10):
 
 
 def plot_metric(data, x_key, y_key, title, y_label, out_path):
-    plt.figure(figsize=(8.8, 5.2))
+    plt.figure(figsize=(5, 5))
     for name, d in data.items():
         x = d.get(x_key, np.array([]))
         y = d.get(y_key, np.array([]))
@@ -314,14 +299,33 @@ def plot_metric(data, x_key, y_key, title, y_label, out_path):
         m = min(len(x), len(y))
         plt.plot(x[:m], y[:m], linewidth=2, marker="o", markersize=3, label=name)
 
-    plt.title(title)
-    plt.xlabel("round")
-    plt.ylabel(y_label)
+    # plt.title(title)
+    plt.xlabel("round", fontsize=15)
+    plt.ylabel(y_label, fontsize=15)
     plt.grid(alpha=0.3)
-    plt.legend(fontsize=9)
+    plt.legend(fontsize=15)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
+
+# def plot_metric(data, x_key, y_key, title, y_label, out_path):
+#     plt.figure(figsize=(8.8, 5.2))
+#     for name, d in data.items():
+#         x = d.get(x_key, np.array([]))
+#         y = d.get(y_key, np.array([]))
+#         if len(x) == 0 or len(y) == 0:
+#             continue
+#         m = min(len(x), len(y))
+#         plt.plot(x[:m], y[:m], linewidth=2, marker="o", markersize=3, label=name)
+
+#     plt.title(title)
+#     plt.xlabel("round")
+#     plt.ylabel(y_label)
+#     plt.grid(alpha=0.3)
+#     plt.legend(fontsize=9)
+#     plt.tight_layout()
+#     plt.savefig(out_path, dpi=300, bbox_inches="tight")
+#     plt.close()
 
 
 def _safe_name(metric: str) -> str:
@@ -367,8 +371,8 @@ def main():
         data={k: {"train_turns": v["train_turns_smooth"], "train_losses": v["train_losses_smooth"]} for k, v in data.items()},
         x_key="train_turns",
         y_key="train_losses",
-        title="Training Loss Comparison",
-        y_label="BPR Loss",
+        title="Training Loss",
+        y_label="Loss",
         out_path=FIG_DIR / f"{ts}_loss_comparison.png",
     )
 
@@ -392,7 +396,7 @@ def main():
             data=metric_plot_data,
             x_key="eval_turns",
             y_key="metric_values",
-            title=f"{metric} Comparison",
+            title=f"{metric}",
             y_label=metric,
             out_path=FIG_DIR / f"{ts}_{safe_metric}_comparison.png",
         )

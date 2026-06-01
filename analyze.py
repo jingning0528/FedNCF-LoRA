@@ -28,6 +28,19 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# =========================================================
+# Global plot style (bigger text for all figures)
+# =========================================================
+plt.rcParams.update({
+    "font.size": 14,
+    "axes.titlesize": 17,
+    "axes.labelsize": 15,
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
+    "legend.fontsize": 12,
+    "figure.titlesize": 18,
+})
+
 
 # =========================================================
 # Project paths
@@ -59,8 +72,10 @@ AB_CSV_DIR.mkdir(parents=True, exist_ok=True)
 SELECTED_LOG_FILES = [
 
     # ************************************** baseline ********************************
-    "analyze/lora.txt",
-    "analyze/momentumA_fixedB.txt",
+    # "analyze/lora.txt",
+    # "analyze/momentumA_fixedB.txt",
+    "analyze/lora_1000.txt",
+
 
 ]
 
@@ -257,8 +272,8 @@ def line_plot(df: pd.DataFrame, x: str, ys: list[str], title: str, ylabel: str, 
     plt.figure(figsize=(9, 5))
     for y in ys:
         if y in df.columns:
-            plt.plot(df[x], df[y], marker="o", label=y)
-    plt.xlabel("Turn")
+            plt.plot(df[x], df[y], marker="o", label=y, linewidth=2.0, markersize=5)
+    plt.xlabel("round")
     plt.ylabel(ylabel)
     plt.title(title)
     plt.legend()
@@ -272,8 +287,8 @@ def scatter_plot(df: pd.DataFrame, x: str, y: str, title: str, out_path: Path):
     if x not in df.columns or y not in df.columns:
         return
     plt.figure(figsize=(7, 5))
-    plt.scatter(df[x], df[y])
-    plt.xlabel(x)
+    plt.scatter(df[x], df[y], s=32)
+    plt.xlabel("round" if x.lower() == "turn" else x)
     plt.ylabel(y)
     plt.title(title)
     plt.grid(True, alpha=0.3)
@@ -289,9 +304,9 @@ def comparison_line_plot(all_df: pd.DataFrame, y: str, title: str, ylabel: str, 
     plt.figure(figsize=(10, 5))
     for exp_name, group in all_df.groupby("experiment"):
         group = group.sort_values("turn")
-        plt.plot(group["turn"], group[y], marker="o", label=exp_name)
+        plt.plot(group["turn"], group[y], marker="o", label=exp_name, linewidth=2.0, markersize=5)
 
-    plt.xlabel("Turn")
+    plt.xlabel("round")
     plt.ylabel(ylabel)
     plt.title(title)
     plt.legend()
@@ -308,6 +323,16 @@ def comparison_line_plot(all_df: pd.DataFrame, y: str, title: str, ylabel: str, 
 def make_single_experiment_figures(ab_df: pd.DataFrame, metric_df: pd.DataFrame, out_dir: Path):
     """Draw figures for one log file."""
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 0. Combined A/B figure (requested)
+    line_plot(
+        ab_df,
+        "turn",
+        ["delta_A_F", "delta_B_F", "norm_delta_A", "norm_delta_B"],
+        "A/B Update Magnitudes (Raw + Normalized)",
+        "Value",
+        out_dir / "00_A_B_four_metrics_in_one.png",
+    )
 
     # 1. Matrix magnitude
     line_plot(
