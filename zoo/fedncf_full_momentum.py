@@ -54,6 +54,7 @@ class model(BaseModel):
                                   embedding_regularizer=embedding_regularizer, 
                                   net_regularizer=net_regularizer,
                                   metrics=metrics)
+        self.metrics = metrics  # <-- add this line (compatibility)
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
         self.embedding_item = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
         self.mlp = MLP_Block(input_dim = embedding_dim * 2,
@@ -257,7 +258,10 @@ class Server(ServerBase):
         y_pred = np.array(y_pred, np.float64)
         y_true = np.array(y_true, np.float64)
         group_id = np.array(group_id) if len(group_id) > 0 else None
-        val_logs = self.model.evaluate_metrics(y_true, y_pred, self.model.metrics, group_id)  # fixed typo
+
+        eval_metrics = getattr(self.model, "metrics", getattr(self.model, "metrcis", None))
+        val_logs = self.model.evaluate_metrics(y_true, y_pred, eval_metrics, group_id)
+
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
