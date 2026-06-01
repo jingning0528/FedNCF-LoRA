@@ -9,6 +9,8 @@ FedNCF_ml1m_triple_full_momentum:
     embedding_dim: 32
     hidden_activations: ReLU
     hidden_units: [64, 128, 64]
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
     output_dim: 1
     latent_dim: 4
     dropout: 0.5
