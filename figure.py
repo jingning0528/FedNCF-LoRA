@@ -24,10 +24,11 @@ SELECTED_LOG_FILES = [
     # "baseline_1000/FedNCF-Full.txt",
     # "baseline_1000/FedNCF-LoRA.txt",
     # "baseline_1000/MofiLoRA.txt",
+    # "baseline_1000/FedNCF-Full-Mom.txt",
 
     "baseline_2000/FedNCF-Full.txt",
     "baseline_2000/FedNCF-LoRA.txt",
-    # "baseline_2000/MofiLoRA.txt",
+    "baseline_2000/MofiLoRA.txt",
 
     # "baseline_500/fedncf_lora.txt",
     # "baseline_500/fedncf_base.txt",
