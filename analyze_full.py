@@ -28,7 +28,8 @@ CSV_DIR.mkdir(parents=True, exist_ok=True)
 
 # Put your selected logs here (relative to LOG_DIR)
 SELECTED_LOG_FILES = [
-    # "analyze/full_momentum.txt",
+    "analyze_1000/FedNCF-Full.txt",
+    
 ]
 
 
@@ -110,11 +111,11 @@ def line_plot(df: pd.DataFrame, y_cols: list[str], title: str, ylabel: str, out_
     for c in y_cols:
         if c in df.columns:
             plt.plot(df["turn"], df[c], marker="o", linewidth=2.0, markersize=5, label=c)
-    plt.title(title)
-    plt.xlabel("round")
-    plt.ylabel(ylabel)
+    # plt.title(title)
+    plt.xlabel("round", fontsize=15)
+    plt.ylabel(ylabel, fontsize=15)
     plt.grid(True, alpha=0.3)
-    plt.legend()
+    plt.legend(fontsize=15)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300)
     plt.close()

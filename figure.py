@@ -29,6 +29,7 @@ SELECTED_LOG_FILES = [
     "baseline_2000/FedNCF-Full.txt",
     "baseline_2000/FedNCF-LoRA.txt",
     "baseline_2000/MofiLoRA.txt",
+    "baseline_2000/FedNCF-FixedB.txt",
 
     # "baseline_500/fedncf_lora.txt",
     # "baseline_500/fedncf_base.txt",

@@ -191,7 +191,7 @@ FedNCF_ml1m_triple_101_fixedB:
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
     task: 'triple'
-    train_turn: 1000
+    train_turn: 2000
     embedding_dim: 32
     hidden_activations: ReLU
     hidden_units: [64, 128, 64]
@@ -211,7 +211,7 @@ FedNCF_ml1m_triple_101_fixedB:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    model: FedNCF_Lora_FixedB
+    model: FedNCF_Lora_FixedB_Analyze
     latent_dim: 4       # rank r, try 2 for more compression
 
 

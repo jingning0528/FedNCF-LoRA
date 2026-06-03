@@ -18,3 +18,4 @@ from .fedncf_lora_analyze import FedNCF_Lora_Analyze
 
 from .fedncf_full_momentum import FedNCF_Full_Momentum
 from .fedncf_full_analyze import FedNCF_Full_Analyze
+from .fedncf_lora_fixedB_analyze import FedNCF_Lora_FixedB_Analyze

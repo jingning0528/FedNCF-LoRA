@@ -37,7 +37,7 @@ plt.rcParams.update({
     "axes.labelsize": 15,
     "xtick.labelsize": 13,
     "ytick.labelsize": 13,
-    "legend.fontsize": 12,
+    "legend.fontsize": 15,
     "figure.titlesize": 18,
 })
 
@@ -72,9 +72,8 @@ AB_CSV_DIR.mkdir(parents=True, exist_ok=True)
 SELECTED_LOG_FILES = [
 
     # ************************************** baseline ********************************
-    # "analyze/lora.txt",
-    # "analyze/momentumA_fixedB.txt",
-    "analyze/lora_1000.txt",
+    "analyze_1000/FedNCF-LoRA.txt",
+    # "analyze_1000/MofiLoRA.txt",
 
 
 ]
@@ -273,10 +272,10 @@ def line_plot(df: pd.DataFrame, x: str, ys: list[str], title: str, ylabel: str, 
     for y in ys:
         if y in df.columns:
             plt.plot(df[x], df[y], marker="o", label=y, linewidth=2.0, markersize=5)
-    plt.xlabel("round")
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.legend()
+    plt.xlabel("round", fontsize=15)
+    plt.ylabel(ylabel, fontsize=15)
+    # plt.title(title)
+    plt.legend(fontsize=15)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300)
@@ -286,11 +285,11 @@ def line_plot(df: pd.DataFrame, x: str, ys: list[str], title: str, ylabel: str, 
 def scatter_plot(df: pd.DataFrame, x: str, y: str, title: str, out_path: Path):
     if x not in df.columns or y not in df.columns:
         return
-    plt.figure(figsize=(7, 5))
+    plt.figure(figsize=(9, 5))
     plt.scatter(df[x], df[y], s=32)
     plt.xlabel("round" if x.lower() == "turn" else x)
     plt.ylabel(y)
-    plt.title(title)
+    # plt.title(title)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300)
@@ -301,15 +300,15 @@ def comparison_line_plot(all_df: pd.DataFrame, y: str, title: str, ylabel: str, 
     if all_df.empty or y not in all_df.columns or "experiment" not in all_df.columns:
         return
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(9, 5))
     for exp_name, group in all_df.groupby("experiment"):
         group = group.sort_values("turn")
         plt.plot(group["turn"], group[y], marker="o", label=exp_name, linewidth=2.0, markersize=5)
 
-    plt.xlabel("round")
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.legend()
+    plt.xlabel("round", fontsize=15)
+    plt.ylabel(ylabel, fontsize=15)
+    # plt.title(title)
+    plt.legend(fontsize=15)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(out_path, dpi=300)
