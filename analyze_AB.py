@@ -72,8 +72,10 @@ AB_CSV_DIR.mkdir(parents=True, exist_ok=True)
 SELECTED_LOG_FILES = [
 
     # ************************************** baseline ********************************
-    "analyze_1000/FedNCF-LoRA.txt",
-    # "analyze_1000/MofiLoRA.txt",
+    # "analyze_1000/FedNCF-LoRA.txt",
+    
+    "analyze_1000/FedNCF-FixedB.txt",
+    "analyze_1000/MofiLoRA.txt",
 
 
 ]

@@ -1,126 +1,112 @@
 """
-preprocess with PLM
+Preprocess Amazon Reviews 2023 5-core CSV for FedNCF / FedPEFT LoRA.
+
+Input:
+    ./data/Amazon/5-core/Software.csv
+    ./data/Amazon/5-core/Industrial_and_Scientific.csv
+
+Output:
+    ./data/Amazon/graph/Software_user.pth
+    ./data/Amazon/graph/Software_item.pth
+    ./data/Amazon/5-core_clip/Software_fl.pth
+    ./data/Amazon/5-core_clip/Software_user.csv
+    ./data/Amazon/5-core_clip/Software_item.csv
 """
 
 import os
 from pathlib import Path
-import torch
-from sentence_transformers import SentenceTransformer
+from collections import defaultdict
+
 import pandas as pd
+import torch
+
 
 BASE_DIR = Path("./data/Amazon").resolve()
-review_path = str(BASE_DIR / "5-core") + "/"
-review_path_clip = str(BASE_DIR / "5-core_clip") + "/"
-graph_path = str(BASE_DIR / "graph") + "/"
-meta_path = str(BASE_DIR / "meta" / "meta_")
-meta_path_clip = str(BASE_DIR / "meta_processed" / "t5") + "/"
+
+review_path = BASE_DIR / "5-core"
+review_path_clip = BASE_DIR / "5-core_clip"
+graph_path = BASE_DIR / "graph"
 
 os.makedirs(review_path_clip, exist_ok=True)
 os.makedirs(graph_path, exist_ok=True)
-os.makedirs(meta_path_clip, exist_ok=True)
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model_name = os.getenv("ST_MODEL", "sentence-transformers/sentence-t5-base")
-model = SentenceTransformer(model_name, device=device)
 
 categories = [
-    "All_Beauty",
-    "AMAZON_FASHION",
-    "Appliances",
-    "Arts_Crafts_and_Sewing",
-    "Automotive",
-    "CDs_and_Vinyl",
-    "Cell_Phones_and_Accessories",
-    "Digital_Music",
-    "Gift_Cards",
-    "Grocery_and_Gourmet_Food",
-    "Industrial_and_Scientific",
-    "Kindle_Store",
-    "Luxury_Beauty",
-    "Magazine_Subscriptions",
-    "Movies_and_TV",
-    "Musical_Instruments",
-    "Office_Products",
-    "Patio_Lawn_and_Garden",
-    "Pet_Supplies",
-    "Prime_Pantry",
     "Software",
-    "Sports_and_Outdoors",
-    "Tools_and_Home_Improvement",
-    "Toys_and_Games",
-    "Video_Games",
-    "Electronics",
-    "Home_and_Kitchen",]
+    "Industrial_and_Scientific",
+]
 
-def pre_process_review(field:str):
-    meta_data = {} # {0:{},}
-    users = [] # ['B#auser','']
-    items = [] # ['B#item','']
-    users_inter = {} # {0:[0],1:[]}
-    items_inter = {}    # {0:[1],1:[]}
-    review_data = [] # [{'reviewID':1,'asin':0,..},{},{},..]
-    review_data_fl = {} # review_data split by user {1:[{'reviewID':1,'asin':0,..}]}
 
-    for _, review in pd.read_json(review_path + field + "_5.json", orient='records', lines=True).iterrows():
-        if review['reviewerID'] not in users:
-            users.append(review['reviewerID'])
-            users_inter[users.index(review['reviewerID'])] = list()
-            review_data_fl[users.index(review['reviewerID'])] = list()
-        if review['asin'] not in items:
-            items.append(review["asin"])
-            items_inter[items.index(review["asin"])] = list()
-            meta_data[items.index(review["asin"])] = dict()
-        # graph 
-        users_inter[users.index(review['reviewerID'])].append(items.index(review["asin"]))
-        items_inter[items.index(review["asin"])].append(users.index(review['reviewerID']))
+def pre_process_review(field: str):
+    csv_path = review_path / f"{field}.csv"
 
-        # review
-        review_dict = dict()
-        review_dict['reviewerID'] = users.index(review['reviewerID'])
-        review_dict['asin'] = items.index(review["asin"])
-        # review_dict['reviewText'] = process_txt_clip(review['reviewText'])
-        # review_dict['summary'] = process_txt_clip(review['summary'])
-        # if 'image' in review:
-        #     if isinstance(review['image'][0], str):
-        #         review_dict['image'] = process_img_clip(review['image'][0])
-        #     else:
-        #         review_dict['image'] = process_img_clip(review['image'][0][0])
-        
-        # review_dict['unixReviewTime'] = review['unixReviewTime']
-        review_dict['overall'] = float(review['overall'])
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Cannot find file: {csv_path}")
 
-        review_data.append(review_dict)
-        review_data_fl[users.index(review['reviewerID'])].append(review_dict)
-    torch.save(users_inter, graph_path + field + '_user.pth')
-    torch.save(items_inter, graph_path + field + '_item.pth')
-    # torch.save(review_data, review_path_clip + field + '.pth')
-    torch.save(review_data_fl, review_path_clip + field + '_fl.pth')
-    pd.DataFrame({'reviewerID':users}).to_csv(review_path_clip + field + '_user.csv')
-    pd.DataFrame({'asin':items}).to_csv(review_path_clip + field + '_item.csv')
-    
-    print(field + ':' + str(len(users)) + ',' +str(len(items)))
-    
-    return meta_data, items
+    df = pd.read_csv(csv_path)
 
-# meta
-def pre_process_meta(field:str, meta_data, items):
-    # meta_data {0:{},}
-    meta_input = [""] * len(items)
-    for _, asin in pd.read_json(meta_path + field + ".json", orient='records', lines=True).iterrows():
-        if asin['asin'] not in items:
-            continue
-        else:
-            meta_prompt = "A product"
-            for attr in ['title', 'description', 'categories', 'brand', 'feature']:
-                if attr in asin and not isinstance(asin[attr], float) and len(asin[attr]) > 0:
-                    meta_prompt += ", with " + attr + ": " + str(asin[attr])
-            meta_prompt += "."
+    required_cols = {"user_id", "parent_asin", "rating", "timestamp"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"{field}.csv missing columns: {missing}")
 
-            meta_input[items.index(asin["asin"])] = meta_prompt
-    embedding = model.encode(meta_input, convert_to_tensor=True)
-    print(embedding.shape)
-    torch.save(embedding, meta_path_clip + field + '.pth')
+    # Important: sort by user and timestamp.
+    # The FedPEFT dataloader uses the last interaction as test sample.
+    df = df.sort_values(["user_id", "timestamp"])
 
-for field in ["Software", "Industrial_and_Scientific"]:
-    meta_data, items = pre_process_review(field)
-    pre_process_meta(field, meta_data, items)
+    users = []
+    items = []
+    user2id = {}
+    item2id = {}
+
+    users_inter = defaultdict(list)       # {user_id_int: [item_id_int, ...]}
+    items_inter = defaultdict(list)       # {item_id_int: [user_id_int, ...]}
+    review_data_fl = defaultdict(list)    # {user_id_int: [review_dict, ...]}
+
+    for _, row in df.iterrows():
+        raw_user = row["user_id"]
+        raw_item = row["parent_asin"]
+
+        if raw_user not in user2id:
+            user2id[raw_user] = len(users)
+            users.append(raw_user)
+
+        if raw_item not in item2id:
+            item2id[raw_item] = len(items)
+            items.append(raw_item)
+
+        uid = user2id[raw_user]
+        iid = item2id[raw_item]
+
+        users_inter[uid].append(iid)
+        items_inter[iid].append(uid)
+
+        # Keep old FedPEFT key names, so dataloader does not need modification.
+        review_dict = {
+            "reviewerID": uid,
+            "asin": iid,
+            "overall": float(row["rating"]),
+            "unixReviewTime": int(row["timestamp"]),
+        }
+
+        review_data_fl[uid].append(review_dict)
+
+    torch.save(dict(users_inter), graph_path / f"{field}_user.pth")
+    torch.save(dict(items_inter), graph_path / f"{field}_item.pth")
+    torch.save(dict(review_data_fl), review_path_clip / f"{field}_fl.pth")
+
+    pd.DataFrame({"reviewerID": users}).to_csv(
+        review_path_clip / f"{field}_user.csv", index=False
+    )
+    pd.DataFrame({"asin": items}).to_csv(
+        review_path_clip / f"{field}_item.csv", index=False
+    )
+
+    print(
+        f"{field}: "
+        f"users={len(users)}, items={len(items)}, interactions={len(df)}"
+    )
+
+
+if __name__ == "__main__":
+    for field in categories:
+        pre_process_review(field)

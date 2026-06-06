@@ -1,5 +1,5 @@
 from .fedncf_lora import FedNCF_Lora
-from .fedncf_base import FedNCF_base
+from .fedncf_full import FedNCF_Full
 
 
 from .fedncf_lora_fixedB import FedNCF_Lora_FixedB

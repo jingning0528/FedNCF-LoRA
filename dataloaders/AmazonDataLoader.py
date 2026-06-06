@@ -32,6 +32,7 @@ class AmazonDataLoader(BaseDataLoader):
         self.graph_item = torch.load(data_dir + 'graph/' + field + '_item.pth')
         self.user_num = user_num
         self.item_num = item_num
+        self.sen_embedding_dim = int(params.get("sen_embedding_dim", 768))
         self.embedding_dim_modal = embedding_dim_modal
 
         # split data
@@ -174,6 +175,7 @@ class AmazonDataLoaderFL(BaseDataLoaderFL):
         self.graph_item = torch.load(data_dir + 'graph/' + field + '_item.pth')
         self.user_num = user_num
         self.item_num = item_num
+        self.sen_embedding_dim = int(params.get("sen_embedding_dim", 768))
 
         # splite data
         train_user = []
@@ -274,8 +276,21 @@ class AmazonDataLoaderFL(BaseDataLoaderFL):
     def get_user_information(self, user):
         return None
 
+
+    # Modified for the case when item_dict is not available, to avoid error when calling this function.
+    # def get_item_feature(self):
+    #     return self.item_dict
     def get_item_feature(self):
-        return self.item_dict
+        if hasattr(self, "item_dict"):
+            return self.item_dict
+
+        # Dummy item features for LoRA-only FedNCF
+        return torch.zeros(
+            int(self.item_num),
+            int(self.sen_embedding_dim),
+            dtype=torch.float32,
+            device=self.device
+        )
 
     def get_aj_graph(self):
         return self.aj_graph

@@ -210,7 +210,7 @@ class Server(ServerBase):
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-class FedNCF_base:
+class FedNCF_Full:
     def __init__(self, 
                  dataload:BaseDataLoaderFL,
                  clients_num_per_turn, 

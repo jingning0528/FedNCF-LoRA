@@ -17,19 +17,18 @@ FIG_DIR = REPO_ROOT / "figures"
 SELECTED_LOG_FILES = [
 
 
+
+
     # **************************************baseline********************************
-    
-
-
-    # "baseline_1000/FedNCF-Full.txt",
-    # "baseline_1000/FedNCF-LoRA.txt",
+    "baseline_1000/FedNCF-Full.txt",
+    "baseline_1000/FedNCF-LoRA.txt",
     # "baseline_1000/MofiLoRA.txt",
     # "baseline_1000/FedNCF-Full-Mom.txt",
 
-    "baseline_2000/FedNCF-Full.txt",
-    "baseline_2000/FedNCF-LoRA.txt",
-    "baseline_2000/MofiLoRA.txt",
-    "baseline_2000/FedNCF-FixedB.txt",
+    # "baseline_2000/FedNCF-Full.txt",
+    # "baseline_2000/FedNCF-LoRA.txt",
+    # "baseline_2000/FedNCF-FixedB.txt",
+    # "baseline_2000/MofiLoRA.txt",
 
     # "baseline_500/fedncf_lora.txt",
     # "baseline_500/fedncf_base.txt",
@@ -37,24 +36,35 @@ SELECTED_LOG_FILES = [
     # "baseline_200/fedncf_lora.txt",
     # "baseline_200/fedncf_base.txt",
 
-    # **************************************EMA Finetune 1000********************************
+    # **************************************Seed*********************************************
+    "seed/MofiLoRA-2024.txt",
+    "seed/MofiLoRA-2025.txt",
+    "seed/MofiLoRA-2026.txt",
+    "seed/MofiLoRA-2027.txt",
+    "seed/MofiLoRA-2028.txt",
 
-    # "finetune_1000/ema/ema_0.9_5.0.txt",
-    # "finetune_1000/ema/ema_0.9_10.0.txt",
-    # "finetune_1000/ema/ema_0.9_20.0.txt",
+    # **************************************EMA Finetune 1000********************************
+    # "finetune_1000/ema/ema_0.97_5.0.txt",
+    # "finetune_1000/ema/ema_0.97_10.0.txt",
+    # "finetune_1000/ema/ema_0.97_20.0.txt",
 
     # "finetune_1000/ema/ema_0.8_10.0.txt",
-    # "finetune_1000/ema/ema_0.9_10.0.txt",
+    # "finetune_1000/ema/ema_0.97_10.0.txt",
     # "finetune_1000/ema/ema_0.99_10.0.txt",
 
     # "finetune_1000/ema/ema_0.8_5.0.txt",
     # "finetune_1000/ema/ema_0.8_10.0.txt",
     # "finetune_1000/ema/ema_0.8_20.0.txt",
+
+    # "finetune_1000/ema/ema_0.9_5.0.txt",
+    # "finetune_1000/ema/ema_0.9_10.0.txt",
+    # "finetune_1000/ema/ema_0.9_20.0.txt",
     
     # "finetune_1000/ema/ema_0.5_10.0.txt",
     # "finetune_1000/ema/ema_0.7_10.0.txt",
+    # "finetune_1000/ema/ema_0.9_10.0.txt",
     # "finetune_1000/ema/ema_0.95_10.0.txt",
-    # "finetune_1000/ema/ema_0.97_10.0.txt",
+    
 
     # **************************************Heavyball Finetune 1000********************************
     # "finetune_1000/heavyball/beta=0.9, ηs=0.5.txt",

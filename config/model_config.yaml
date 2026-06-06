@@ -1,4 +1,82 @@
+# ************************************ Amazon *******************************************
+FedNCF_amazon_triple_101_software:
+    seed: 2024
+    local_epoch: 2
+    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
+    task: 'triple'
+    train_turn: 1000
+    embedding_dim: 32
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
+    hidden_activations: "ReLU"
+    output_dim: 1
+    dropout: 0.5
+    only_inter: false
+    embedding_regularizer: 1.e-8
+    net_regularizer: 1.e-8
+    learning_rate: 1.e-2
+    optimizer: adam
+    loss_fn: 'bpr_loss'
+    pre_epoch: 3000
+    ## **Dataset**
+    # **ml1m**
+    # dataset_id: ML1M_t5
+    # dataloader: MLDataLoaderFL
+    # clients_num_per_turn: 604
+    # **software**
+    dataset_id: Amazon_software_t5
+    dataloader: AmazonDataLoaderFL
+    clients_num_per_turn: 14639
+    # **industrial**
+    # dataset_id: Amazon_industrial_t5
+    # dataloader: AmazonDataLoaderFL
+    # clients_num_per_turn: 530
+    ## **Compressed embedding**
+    # **LoRA**
+    model: FedNCF_Lora
+    latent_dim: 4
 
+FedNCF_amazon_triple_101_industrial:
+    seed: 2024
+    local_epoch: 2
+    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
+    task: 'triple'
+    train_turn: 1000
+    embedding_dim: 32
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
+    hidden_activations: "ReLU"
+    output_dim: 1
+    dropout: 0.5
+    only_inter: false
+    embedding_regularizer: 1.e-8
+    net_regularizer: 1.e-8
+    learning_rate: 1.e-2
+    optimizer: adam
+    loss_fn: 'bpr_loss'
+    pre_epoch: 3000
+    ## **Dataset**
+    # **ml1m**
+    # dataset_id: ML1M_t5
+    # dataloader: MLDataLoaderFL
+    # clients_num_per_turn: 604
+    # **software**
+    # dataset_id: Amazon_software_t5
+    # dataloader: AmazonDataLoaderFL
+    # clients_num_per_turn: 180
+    # **industrial**
+    dataset_id: Amazon_industrial_t5
+    dataloader: AmazonDataLoaderFL
+    clients_num_per_turn: 5098
+    ## **Compressed embedding**
+    # **LoRA**
+    model: FedNCF_Lora
+    latent_dim: 4
+    
+
+# ************************************ ML-1M *******************************************
 FedNCF_ml1m_triple_full_analyze:
     seed: 2024
     model: FedNCF_Full_Analyze
@@ -78,13 +156,9 @@ FedNCF_ml1m_triple_101:
     loss_fn: 'bpr_loss'
     pre_epoch: 3000
     # **ml1m**
-    # dataset_id: ML1M_t5
-    # dataloader: MLDataLoaderFL
-    # clients_num_per_turn: 604
-    # **software**
-    dataset_id: Amazon_software_t5
-    dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 180
+    dataset_id: ML1M_t5
+    dataloader: MLDataLoaderFL
+    clients_num_per_turn: 604
     # **LoRA**
     model: FedNCF_Lora
     latent_dim: 4
@@ -94,7 +168,7 @@ FedNCF_ml1m_triple_101_momentumA_fixedB_finetune:
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
     task: 'triple'
-    train_turn: 200
+    train_turn: 1000
     embedding_dim: 32
     hidden_activations: ReLU
     hidden_units: [64, 128, 64]
@@ -114,12 +188,12 @@ FedNCF_ml1m_triple_101_momentumA_fixedB_finetune:
     dataset_id: ML1M_t5
     dataloader: MLDataLoaderFL
     clients_num_per_turn: 604
-    model: FedNCF_Lora_MomentumA_FixedB_Finetune_Analyze
+    model: FedNCF_Lora_MomentumA_FixedB_Finetune
     latent_dim: 4       # rank r, try 2 for more compression
     beta: 0.99           # momentum coefficient
     eta_s: 2.0          # server learning rate
-    server_optimizer: heavyball # options: "adam", "ema" or "heavyball"
-    eta_s: 0.5
+    server_optimizer: heavyball # options: "adam", "ema_norm" or "heavyball"
+    # eta_s: 0.5
     server_adam_beta1: 0.9
     server_adam_beta2: 0.99
     server_adam_eps: 1.e-8
@@ -152,7 +226,7 @@ FedNCF_ml1m_triple_101_momentumA_fixedB:
     model: FedNCF_Lora_MomentumA_FixedB
     latent_dim: 4       # rank r, try 2 for more compression
     beta: 0.9           # momentum coefficient
-    eta_s: 200.0          # server learning rate
+    eta_s: 1.0          # server learning rate
     # momentum_type: ema   # options: "ema" or "heavy_ball"
 
 FedNCF_ml1m_triple_101_momentumA:
@@ -245,12 +319,6 @@ FedNCF_ml1m_triple_101_fixedA:
 
 
 # ***********************************************************************************
-
-
-
-
-
-
 Fedpergnn_ml1m_triple_101:
     seed: 1998
     model: FedPerGNN_Hash

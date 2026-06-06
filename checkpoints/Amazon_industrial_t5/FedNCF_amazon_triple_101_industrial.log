@@ -1,0 +1,48 @@
+2026-06-06 13:33:17,454 P35419 INFO Params: {
+    "clients_num_per_turn": "5098",
+    "data_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/",
+    "dataloader": "AmazonDataLoaderFL",
+    "dataset_id": "Amazon_industrial_t5",
+    "device": "-1",
+    "dropout": "0.5",
+    "embedding_dim": "32",
+    "embedding_regularizer": "1e-08",
+    "field": "Industrial_and_Scientific",
+    "g_hidden_activations": "ReLU",
+    "g_hidden_units": "[512, 256, 128]",
+    "hidden_activations": "ReLU",
+    "hidden_units": "[64, 32, 16]",
+    "item_num": "25848",
+    "latent_dim": "4",
+    "learning_rate": "0.01",
+    "local_epoch": "2",
+    "loss_fn": "bpr_loss",
+    "meta_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/",
+    "metrics": "['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']",
+    "model": "FedNCF_Lora",
+    "model_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Industrial_and_Scientific/",
+    "model_id": "FedNCF_amazon_triple_101_industrial",
+    "net_regularizer": "1e-08",
+    "only_inter": "True",
+    "optimizer": "adam",
+    "output_dim": "1",
+    "path": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Industrial_and_Scientific",
+    "pre_epoch": "3000",
+    "seed": "2024",
+    "sen_embedding_dim": "768",
+    "task": "rank",
+    "train_turn": "1000",
+    "user_num": "50985"
+}
+2026-06-06 13:35:06,154 P35419 INFO Model embedding_item.emb.weight size: 0.39440918MB
+2026-06-06 13:35:06,154 P35419 INFO Model embedding_item.linear.weight size: 0.00048828MB
+2026-06-06 13:35:06,154 P35419 INFO Model embedding_p.weight size: 3.15527344MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.0.weight size: 0.01562500MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.0.bias size: 0.00024414MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.3.weight size: 0.00781250MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.3.bias size: 0.00012207MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.6.weight size: 0.00195312MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.6.bias size: 0.00006104MB
+2026-06-06 13:35:06,154 P35419 INFO Model mlp.mlp.9.weight size: 0.00006104MB
+2026-06-06 13:35:06,155 P35419 INFO Model mlp.mlp.9.bias size: 0.00000381MB
+2026-06-06 13:35:06,158 P35419 INFO Model all size: 3.57605362MB

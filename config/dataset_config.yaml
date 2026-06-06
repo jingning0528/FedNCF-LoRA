@@ -1,30 +1,37 @@
 ML1M_t5:
-  # data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
-  # path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
-  # model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/
-  data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
-  path: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
-  model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/model/t5/
-  sen_embedding_dim: 768
-  user_num: 6040
-  item_num: 3952
-
-
-Amazon_software_t5:
   data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
   path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/
   model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/
   # data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
   # path: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/processed/t5/
   # model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/ml-1m/model/t5/
-  data_dir: /data/Amazon/
-  meta_dir: /data/Amazon/meta_processed/t5/
-  model_dir: /data/Amazon/model/t5/Software/
-  field: Software
-  path: /data/Amazon/graph/Software
   sen_embedding_dim: 768
-  user_num: 1826
-  item_num: 802
+  user_num: 6040
+  item_num: 3952
+
+Amazon_software_t5:
+  data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/
+  meta_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/
+  model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Software/
+  field: Software
+  only_inter: true
+  task: rank
+  path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Software
+  sen_embedding_dim: 768
+  user_num: 146396
+  item_num: 17591
+
+Amazon_industrial_t5:
+  data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/
+  meta_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/
+  model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Industrial_and_Scientific/
+  field: Industrial_and_Scientific
+  only_inter: true  
+  task: rank
+  path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Industrial_and_Scientific
+  sen_embedding_dim: 768
+  user_num: 50985
+  item_num: 25848
 
 
 Amazon_fashion_t5:
@@ -77,16 +84,6 @@ Amazon_beauty_t5:
   sen_embedding_dim: 768
   user_num: 991
   item_num: 85
-
-Amazon_industrial_t5:
-  data_dir: /data/Amazon/
-  meta_dir: /data/Amazon/meta_processed/t5/
-  model_dir: /data/Amazon/model/t5/Industrial_and_Scientific/
-  field: Industrial_and_Scientific
-  path: /data/Amazon/graph/Industrial_and_Scientific
-  sen_embedding_dim: 768
-  user_num: 11041
-  item_num: 5334
 
 Amazon_games_t5:
   data_dir: /data/Amazon/

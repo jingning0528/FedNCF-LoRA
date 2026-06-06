@@ -1,0 +1,73 @@
+2026-06-03 12:33:41,866 P15695 INFO Params: {
+    "clients_num_per_turn": "604",
+    "data_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/",
+    "dataloader": "MLDataLoaderFL",
+    "dataset_id": "ML1M_t5",
+    "device": "-1",
+    "dropout": "0.5",
+    "embedding_dim": "32",
+    "embedding_regularizer": "1e-08",
+    "g_hidden_activations": "ReLU",
+    "g_hidden_units": "[512, 256, 128]",
+    "hidden_activations": "ReLU",
+    "hidden_units": "[64, 128, 64]",
+    "item_num": "3952",
+    "latent_dim": "4",
+    "learning_rate": "0.001",
+    "local_epoch": "2",
+    "loss_fn": "bpr_loss",
+    "metrics": "['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']",
+    "model": "FedNCF_Lora_FixedB_Analyze",
+    "model_dir": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/model/t5/",
+    "model_id": "FedNCF_ml1m_triple_101_fixedB",
+    "net_regularizer": "1e-08",
+    "only_inter": "False",
+    "optimizer": "adam",
+    "output_dim": "1",
+    "path": "/Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/ml-1m/processed/t5/",
+    "pre_epoch": "3000",
+    "seed": "2024",
+    "sen_embedding_dim": "768",
+    "task": "triple",
+    "train_turn": "2000",
+    "user_num": "6040"
+}
+2026-06-03 12:33:47,175 P15695 INFO Model embedding_item.emb.weight size: 0.06030273MB
+2026-06-03 12:33:47,175 P15695 INFO Model embedding_item.linear.weight size: 0.00048828MB
+2026-06-03 12:33:47,175 P15695 INFO Model embedding_p.weight size: 0.48242188MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.0.weight size: 0.01562500MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.0.bias size: 0.00024414MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.3.weight size: 0.03125000MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.3.bias size: 0.00048828MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.6.weight size: 0.03125000MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.6.bias size: 0.00024414MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.9.weight size: 0.00024414MB
+2026-06-03 12:33:47,175 P15695 INFO Model mlp.mlp.9.bias size: 0.00000381MB
+2026-06-03 12:33:47,177 P15695 INFO Model all size: 0.62256241MB
+2026-06-03 12:38:46,743 P15695 INFO [Time] pretrain_time=299.5583s
+2026-06-03 12:38:46,746 P15695 INFO [AB_Track] turn=-1 initialized tracking baseline. A_norm=12.53498459, B_norm=2.71805763
+2026-06-03 12:38:46,746 P15695 INFO ********* Train Turn 0 *********
+2026-06-03 12:38:54,195 P15695 INFO Clients average loss: 0.6948421597480774
+2026-06-03 12:38:54,196 P15695 INFO [Time] turn=0 local_train_time=6.4274s avg_client_train_time=0.010641s aggregation_time=0.3281s round_time=7.4497s
+2026-06-03 12:38:54,196 P15695 INFO ********* Train Turn 1 *********
+2026-06-03 12:39:02,215 P15695 INFO Clients average loss: 0.6941014528274536
+2026-06-03 12:39:02,216 P15695 INFO [Time] turn=1 local_train_time=6.9756s avg_client_train_time=0.011549s aggregation_time=0.2453s round_time=8.0197s
+2026-06-03 12:39:02,217 P15695 INFO ********* Train Turn 2 *********
+2026-06-03 12:39:10,028 P15695 INFO Clients average loss: 0.6944800615310669
+2026-06-03 12:39:10,029 P15695 INFO [Time] turn=2 local_train_time=6.8532s avg_client_train_time=0.011346s aggregation_time=0.1819s round_time=7.8121s
+2026-06-03 12:39:10,029 P15695 INFO ********* Train Turn 3 *********
+2026-06-03 12:39:17,942 P15695 INFO Clients average loss: 0.6941848397254944
+2026-06-03 12:39:17,944 P15695 INFO [Time] turn=3 local_train_time=6.9340s avg_client_train_time=0.011480s aggregation_time=0.2154s round_time=7.9143s
+2026-06-03 12:39:17,944 P15695 INFO ********* Train Turn 4 *********
+2026-06-03 12:39:27,535 P15695 INFO Clients average loss: 0.693845808506012
+2026-06-03 12:39:27,536 P15695 INFO [Time] turn=4 local_train_time=8.3699s avg_client_train_time=0.013858s aggregation_time=0.3161s round_time=9.5919s
+2026-06-03 12:39:27,536 P15695 INFO ********* Train Turn 5 *********
+2026-06-03 12:39:36,075 P15695 INFO Clients average loss: 0.6939833760261536
+2026-06-03 12:39:36,076 P15695 INFO [Time] turn=5 local_train_time=7.4634s avg_client_train_time=0.012357s aggregation_time=0.2301s round_time=8.5400s
+2026-06-03 12:39:36,076 P15695 INFO ********* Train Turn 6 *********
+2026-06-03 12:39:45,285 P15695 INFO Clients average loss: 0.6939646601676941
+2026-06-03 12:39:45,286 P15695 INFO [Time] turn=6 local_train_time=7.9373s avg_client_train_time=0.013141s aggregation_time=0.3743s round_time=9.2095s
+2026-06-03 12:39:45,286 P15695 INFO ********* Train Turn 7 *********
+2026-06-03 12:40:00,115 P15695 INFO Clients average loss: 0.694206714630127
+2026-06-03 12:40:00,117 P15695 INFO [Time] turn=7 local_train_time=12.1008s avg_client_train_time=0.020034s aggregation_time=1.2909s round_time=14.8308s
+2026-06-03 12:40:00,118 P15695 INFO ********* Train Turn 8 *********

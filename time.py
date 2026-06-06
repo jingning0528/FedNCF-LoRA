@@ -14,9 +14,10 @@ END_ROUND = 999
 CSV_OUT = Path("csv/baseline_1000_summary.csv")
 
 # add these back
-WINDOW_LEN_LOSS = 100
+WINDOW_LEN_LOSS = 50
 WINDOW_LEN_METRIC = 10
 THRESHOLD = 0.95
+LOSS_CONVERGE_THRESHOLD = 0.3
 # ==================
 
 TURN_PATTERN = re.compile(r"\[Time\]\s+turn=(?P<turn>\d+)")
@@ -128,6 +129,56 @@ def first_converged_round(pairs, window_len, kind):
     return None
 
 
+def first_round_loss_below(pairs, threshold=0.3):
+    """
+    Loss convergence = first round where loss < threshold.
+    """
+    for t, v in pairs:
+        if v is not None and v < threshold:
+            return t
+    return None
+
+
+def first_round_loss_below_consecutive(pairs, threshold=0.3, window_len=100):
+    """
+    Loss convergence = first round where loss <= threshold continuously
+    for at least `window_len` rounds.
+    """
+    if not pairs:
+        return None
+
+    pairs = sorted(pairs, key=lambda x: x[0])  # (turn, loss)
+
+    run_start = None
+    run_len = 0
+    prev_turn = None
+
+    for t, v in pairs:
+        ok = (v is not None and v <= threshold)
+
+        if ok:
+            if run_start is None:
+                run_start = t
+                run_len = 1
+            else:
+                # require consecutive rounds
+                if prev_turn is not None and t == prev_turn + 1:
+                    run_len += 1
+                else:
+                    run_start = t
+                    run_len = 1
+
+            if run_len >= window_len:
+                return run_start
+        else:
+            run_start = None
+            run_len = 0
+
+        prev_turn = t
+
+    return None
+
+
 def metric_stability_std(metric_pairs, start_round, end_round):
     vals = [v for t, v in metric_pairs if start_round <= t <= end_round and v is not None]
     if not vals:
@@ -179,7 +230,12 @@ def analyze_one_file(log_file: Path):
         if START_ROUND <= t <= END_ROUND and m.get("ndcg10") is not None
     )
 
-    loss_T = first_converged_round(loss_pairs, WINDOW_LEN_LOSS, "loss")
+    # changed: loss must stay <= threshold continuously for WINDOW_LEN_LOSS rounds
+    loss_T = first_round_loss_below_consecutive(
+        loss_pairs,
+        threshold=LOSS_CONVERGE_THRESHOLD,
+        window_len=WINDOW_LEN_LOSS,
+    )
     hr_T = first_converged_round(hr_pairs, WINDOW_LEN_METRIC, "metric")
     ndcg_T = first_converged_round(ndcg_pairs, WINDOW_LEN_METRIC, "metric")
 
