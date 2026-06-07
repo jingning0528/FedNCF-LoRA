@@ -13,6 +13,14 @@ Outputs:
 
 Optional with --use-meta:
 6. meta_processed/t5/{field}.pth
+
+python data_pre_process/pre_process_amazon.py \                                  
+  --amazon-path ./data/Amazon/ \
+  --categories Software Industrial_and_Scientific \
+  --use-meta \
+  --model sentence-transformers/all-mpnet-base-v2
+
+
 """
 
 import os
