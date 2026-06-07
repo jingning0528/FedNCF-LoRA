@@ -5,3 +5,8 @@ figure.py
 /data/Amazon/meta
 /data/Amazon/5-core
 
+/data/Amazon/
+*.pth
+*.json
+*.json.gz
+.DS_Store
