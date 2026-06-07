@@ -6,10 +6,10 @@ FedNCF_amazon_triple_101_software:
     task: 'triple'
     train_turn: 1000
     embedding_dim: 32
+    hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
     g_hidden_units: [512, 256, 128]
     g_hidden_activations: ReLU
-    hidden_units: [64, 128, 64]
-    hidden_activations: "ReLU"
     output_dim: 1
     dropout: 0.5
     only_inter: false
@@ -20,18 +20,10 @@ FedNCF_amazon_triple_101_software:
     loss_fn: 'bpr_loss'
     pre_epoch: 3000
     ## **Dataset**
-    # **ml1m**
-    # dataset_id: ML1M_t5
-    # dataloader: MLDataLoaderFL
-    # clients_num_per_turn: 604
     # **software**
     dataset_id: Amazon_software_t5
     dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 14639
-    # **industrial**
-    # dataset_id: Amazon_industrial_t5
-    # dataloader: AmazonDataLoaderFL
-    # clients_num_per_turn: 530
+    clients_num_per_turn: 180
     ## **Compressed embedding**
     # **LoRA**
     model: FedNCF_Lora
@@ -44,10 +36,10 @@ FedNCF_amazon_triple_101_industrial:
     task: 'triple'
     train_turn: 1000
     embedding_dim: 32
+    hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
     g_hidden_units: [512, 256, 128]
     g_hidden_activations: ReLU
-    hidden_units: [64, 128, 64]
-    hidden_activations: "ReLU"
     output_dim: 1
     dropout: 0.5
     only_inter: false
@@ -57,24 +49,14 @@ FedNCF_amazon_triple_101_industrial:
     optimizer: adam
     loss_fn: 'bpr_loss'
     pre_epoch: 3000
-    ## **Dataset**
-    # **ml1m**
-    # dataset_id: ML1M_t5
-    # dataloader: MLDataLoaderFL
-    # clients_num_per_turn: 604
-    # **software**
-    # dataset_id: Amazon_software_t5
-    # dataloader: AmazonDataLoaderFL
-    # clients_num_per_turn: 180
     # **industrial**
     dataset_id: Amazon_industrial_t5
     dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 5098
+    clients_num_per_turn: 530
     ## **Compressed embedding**
     # **LoRA**
     model: FedNCF_Lora
     latent_dim: 4
-    
 
 # ************************************ ML-1M *******************************************
 FedNCF_ml1m_triple_full_analyze:
