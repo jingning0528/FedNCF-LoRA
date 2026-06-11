@@ -9,7 +9,7 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="./config/model_config.yaml")
+    parser.add_argument("--config", type=str, default="./config/")
     parser.add_argument("--expid", type=str, required=True)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--seeds", type=str, default="2024,2025,2026,2027,2028")
