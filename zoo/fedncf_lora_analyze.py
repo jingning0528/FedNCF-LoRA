@@ -478,10 +478,6 @@ class FedNCF_Lora_Analyze:
             self.server.global_model = self.server.model.embedding_p.state_dict()
             logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
 
-        # ---- A/B convergence tracking initialization ----
-        # We snapshot A and B before FL training starts.
-        # Then after each aggregation, we compute one-round updates:
-        # Delta A_t = A_{t+1} - A_t and Delta B_t = B_{t+1} - B_t.
         prev_A, prev_B = self._get_lora_A_B()
         prev_delta_A = None
         prev_delta_B = None
@@ -491,6 +487,7 @@ class FedNCF_Lora_Analyze:
 
             round_start = time.perf_counter()
             local_train_time = 0.0
+            client_train_times = []  # ADDED
 
             select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
             client_model = []
@@ -503,7 +500,10 @@ class FedNCF_Lora_Analyze:
 
                 t0 = time.perf_counter()
                 loss = self.client.local_train(user, self.local_epoch, self.dataload, turn < 20, self.compressed)
-                local_train_time += time.perf_counter() - t0
+                dt = time.perf_counter() - t0  # ADDED
+
+                local_train_time += dt
+                client_train_times.append(dt)  # ADDED
 
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
@@ -513,7 +513,6 @@ class FedNCF_Lora_Analyze:
             self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
             agg_time = time.perf_counter() - agg_start
 
-            # ---- A/B convergence tracking after aggregation ----
             ab_metrics, curr_A, curr_B, curr_delta_A, curr_delta_B = self._compute_ab_convergence_metrics(
                 prev_A=prev_A,
                 prev_B=prev_B,
@@ -521,8 +520,6 @@ class FedNCF_Lora_Analyze:
                 prev_delta_B=prev_delta_B,
             )
 
-            # Log every 10 rounds. The metrics are computed every round so that
-            # cosine similarity compares adjacent update directions correctly.
             if (turn + 1) % 10 == 0:
                 logging.info(
                     "[AB-Convergence] "
@@ -539,21 +536,41 @@ class FedNCF_Lora_Analyze:
             prev_A, prev_B = curr_A, curr_B
             prev_delta_A, prev_delta_B = curr_delta_A, curr_delta_B
 
-            torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             round_time = time.perf_counter() - round_start
-            avg_client_train_time = local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+            if len(client_train_times) > 0:
+                avg_client_train_time = local_train_time / len(client_train_times)
+                max_client_train_time = max(client_train_times)
+                min_client_train_time = min(client_train_times)
+                median_client_train_time = float(np.median(client_train_times))
+            else:
+                avg_client_train_time = 0.0
+                max_client_train_time = 0.0
+                min_client_train_time = 0.0
+                median_client_train_time = 0.0
+
             logging.info(
                 f"[Time] turn={turn} "
                 f"local_train_time={local_train_time:.4f}s "
                 f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"max_client_train_time={max_client_train_time:.6f}s "
+                f"min_client_train_time={min_client_train_time:.6f}s "
+                f"median_client_train_time={median_client_train_time:.6f}s "
                 f"aggregation_time={agg_time:.4f}s "
                 f"round_time={round_time:.4f}s"
             )
 
-            # ---- evaluate every 10 rounds ----
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
+                logging.info(
+                    f"[EvalRoundClientTime] turn={turn} "
+                    f"avg={avg_client_train_time:.6f}s "
+                    f"max={max_client_train_time:.6f}s "
+                    f"min={min_client_train_time:.6f}s "
+                    f"median={median_client_train_time:.6f}s"
+                )
                 eval_start = time.perf_counter()
                 self.server.evaluate(self.dataload, range(self.user_num))
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")

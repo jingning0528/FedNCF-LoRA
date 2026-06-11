@@ -5,19 +5,37 @@ import csv
 
 # ===== Config =====
 LOG_FILES = [
-    Path("log/baseline_2000/FedNCF-Full.txt"),
-    Path("log/baseline_2000/FedNCF-LoRA.txt"),
-    Path("log/baseline_2000/MoFiLoRA.txt"),
+    Path("log/baseline_1000/FedNCF-Full.txt"),
+    Path("log/baseline_1000/FedNCF-LoRA.txt"),
+    Path("log/baseline_1000/MoFiLoRA.txt"),
+    Path("log/AB_test_1000/LoRA-MomA.txt"),
+    Path("log/AB_test_1000/LoRA-MomB.txt"),
+    Path("log/AB_test_1000/LoRA-FixedA.txt"),
+    Path("log/AB_test_1000/LoRA-FixedB.txt"),
+    Path("log/AB_test_1000/LoRA-MomB-FixedA.txt"),
+    Path("log/AB_test_1000/LoRA-MomA-FixedB.txt"),
+
+    # Path("log/industrial/FedNCF-Full.txt"),
+    # Path("log/industrial/FedNCF-LoRA.txt"),
+    # Path("log/industrial/MoFiLoRA.txt"), #-0.9-0.5
+
+    # Path("log/software/FedNCF-Full.txt"),
+    # Path("log/software/FedNCF-LoRA.txt"),
+    # Path("log/software/MoFiLoRA.txt"), #-0.9-2.0
+
 ]
 START_ROUND = 20
 END_ROUND = 999
 CSV_OUT = Path("csv/baseline_1000_summary.csv")
-
 # add these back
-WINDOW_LEN_LOSS = 50
+WINDOW_LEN_LOSS = 100   # exactly t_c ... t_c+99
 WINDOW_LEN_METRIC = 10
-THRESHOLD = 0.95
-LOSS_CONVERGE_THRESHOLD = 0.3
+THRESHOLD = 0.9
+# LOSS_CONVERGE_THRESHOLD = 0.3   # removed (not used)
+
+# fixed stability range
+STABILITY_START_ROUND = 499
+STABILITY_END_ROUND = 999
 # ==================
 
 TURN_PATTERN = re.compile(r"\[Time\]\s+turn=(?P<turn>\d+)")
@@ -105,6 +123,11 @@ def progress_score(value, v_min, v_max, kind):
 
 
 def first_converged_round(pairs, window_len, kind):
+    """
+    Convergence round t_c is the first round such that for all t in [t_c, t_c+window_len-1]:
+        (L_max - L_t) / (L_max - L_min) >= THRESHOLD      if kind == "loss"
+        (M_t - M_min) / (M_max - M_min) >= THRESHOLD      if kind == "metric"
+    """
     if len(pairs) < window_len:
         return None
 
@@ -129,56 +152,6 @@ def first_converged_round(pairs, window_len, kind):
     return None
 
 
-def first_round_loss_below(pairs, threshold=0.3):
-    """
-    Loss convergence = first round where loss < threshold.
-    """
-    for t, v in pairs:
-        if v is not None and v < threshold:
-            return t
-    return None
-
-
-def first_round_loss_below_consecutive(pairs, threshold=0.3, window_len=100):
-    """
-    Loss convergence = first round where loss <= threshold continuously
-    for at least `window_len` rounds.
-    """
-    if not pairs:
-        return None
-
-    pairs = sorted(pairs, key=lambda x: x[0])  # (turn, loss)
-
-    run_start = None
-    run_len = 0
-    prev_turn = None
-
-    for t, v in pairs:
-        ok = (v is not None and v <= threshold)
-
-        if ok:
-            if run_start is None:
-                run_start = t
-                run_len = 1
-            else:
-                # require consecutive rounds
-                if prev_turn is not None and t == prev_turn + 1:
-                    run_len += 1
-                else:
-                    run_start = t
-                    run_len = 1
-
-            if run_len >= window_len:
-                return run_start
-        else:
-            run_start = None
-            run_len = 0
-
-        prev_turn = t
-
-    return None
-
-
 def metric_stability_std(metric_pairs, start_round, end_round):
     vals = [v for t, v in metric_pairs if start_round <= t <= end_round and v is not None]
     if not vals:
@@ -188,12 +161,37 @@ def metric_stability_std(metric_pairs, start_round, end_round):
     return pstdev(vals)
 
 
-def _fmt(x, nd=6):
+def metric_delta_std(metric_pairs, start_round, end_round):
+    """
+    Std of first-order differences inside [start_round, end_round]:
+      delta_t = value_t - value_(t-1 in filtered sequence)
+    """
+    seq = [(t, v) for t, v in metric_pairs if start_round <= t <= end_round and v is not None]
+    seq = sorted(seq, key=lambda x: x[0])
+    if len(seq) < 2:
+        return None
+
+    deltas = [seq[i][1] - seq[i - 1][1] for i in range(1, len(seq))]
+    if len(deltas) == 1:
+        return 0.0
+    return pstdev(deltas)
+
+
+def _fmt(x, nd=4):
     if x is None:
         return "N/A"
     if isinstance(x, int):
         return str(x)
     return f"{x:.{nd}f}"
+
+
+def _fmt_conv(x):
+    # convergence None -> >900
+    if x is None:
+        return ">900"
+    if isinstance(x, int):
+        return str(x)
+    return f"{x:.0f}"
 
 
 def _method_name(log_file: Path):
@@ -230,12 +228,8 @@ def analyze_one_file(log_file: Path):
         if START_ROUND <= t <= END_ROUND and m.get("ndcg10") is not None
     )
 
-    # changed: loss must stay <= threshold continuously for WINDOW_LEN_LOSS rounds
-    loss_T = first_round_loss_below_consecutive(
-        loss_pairs,
-        threshold=LOSS_CONVERGE_THRESHOLD,
-        window_len=WINDOW_LEN_LOSS,
-    )
+    # 1) loss convergence: back to >=95% progress for >100 rounds
+    loss_T = first_converged_round(loss_pairs, WINDOW_LEN_LOSS, "loss")
     hr_T = first_converged_round(hr_pairs, WINDOW_LEN_METRIC, "metric")
     ndcg_T = first_converged_round(ndcg_pairs, WINDOW_LEN_METRIC, "metric")
 
@@ -250,14 +244,10 @@ def analyze_one_file(log_file: Path):
     ndcg50_last = next((m["ndcg50"] for t, m in sorted(metric_by_turn.items(), reverse=True)
                         if START_ROUND <= t <= END_ROUND and m.get("ndcg50") is not None), None)
 
-    if loss_T is not None:
-        loss_std_after_loss_conv = metric_stability_std(loss_pairs, loss_T, END_ROUND)
-        hr_std_after_loss_conv = metric_stability_std(hr_pairs, loss_T, END_ROUND)
-        ndcg_std_after_loss_conv = metric_stability_std(ndcg_pairs, loss_T, END_ROUND)
-    else:
-        loss_std_after_loss_conv = None
-        hr_std_after_loss_conv = None
-        ndcg_std_after_loss_conv = None
+    # 2) stability: fixed window [499, 999], DELTA std
+    loss_delta_std = metric_delta_std(loss_pairs, STABILITY_START_ROUND, STABILITY_END_ROUND)
+    hr_delta_std = metric_delta_std(hr_pairs, STABILITY_START_ROUND, STABILITY_END_ROUND)
+    ndcg_delta_std = metric_delta_std(ndcg_pairs, STABILITY_START_ROUND, STABILITY_END_ROUND)
 
     return {
         "Method": _method_name(log_file),
@@ -270,81 +260,143 @@ def analyze_one_file(log_file: Path):
         "Loss Convergence": loss_T,
         "HR Convergence": hr_T,
         "NDCG Convergence": ndcg_T,
-        "Loss Stability (Std)": loss_std_after_loss_conv,
-        "HR Stability (Std)": hr_std_after_loss_conv,
-        "NDCG Stability (Std)": ndcg_std_after_loss_conv,
+        "Loss Delta Stability (Std)": loss_delta_std,
+        "HR Delta Stability (Std)": hr_delta_std,
+        "NDCG Delta Stability (Std)": ndcg_delta_std,
         "Local Training Time": local_sum,
         "Aggregation Time": agg_sum,
     }
 
 
+def _is_baseline_method(method_name: str) -> bool:
+    m = (method_name or "").strip().lower()
+    return m in {"fedncf-full", "fedncf-lora"}
+
+
+def _fmt_with_improve(val, base, higher_better=True, nd=4):
+    """
+    Example: 0.0118(-50%) or 0.2453(+10%)
+    """
+    if val is None:
+        return "N/A"
+    v_txt = _fmt(val, nd)
+    if base is None or abs(base) < 1e-12:
+        return v_txt
+    if higher_better:
+        pct = (val - base) / abs(base) * 100.0
+    else:
+        pct = (base - val) / abs(base) * 100.0
+    return f"{v_txt}({pct:+.0f}%)"
+
+
 def main():
     results = [analyze_one_file(p) for p in LOG_FILES]
 
-    print("| Method | HR@10 | NDCG@10 | HR@20 | NDCG@20 | HR@50 | NDCG@50 | Loss Convergence | HR Convergence | NDCG Convergence | Loss Stability (Std) | HR Stability (Std) | NDCG Stability (Std) | Local Training Time | Aggregation Time |")
+    # baseline: FedNCF-LoRA
+    lora_row = next(
+        (r for r in results if "skip" not in r and (r.get("Method", "").strip().lower() == "fedncf-lora")),
+        None
+    )
+
+    print("| Method | Loss Delta Stability (Std) | HR Delta Stability (Std) | NDCG Delta Stability (Std)| Loss Convergence | HR Convergence | NDCG Convergence  | HR@10 | NDCG@10 | HR@20 | NDCG@20 | HR@50 | NDCG@50   | Local Training Time | Aggregation Time |")
     print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
 
     csv_rows = []
 
     for r in results:
+        method = r["Method"]
+
         if "skip" in r:
-            print(f"| {r['Method']} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+            print(f"| {method} | N/A | N/A | N/A | >900 | >900 | >900 | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
             csv_rows.append({
-                "Method": r["Method"],
+                "Method": method,
+                "Loss Delta Stability (Std)": "N/A",
+                "HR Delta Stability (Std)": "N/A",
+                "NDCG Delta Stability (Std)": "N/A",
+                "Loss Convergence": ">900",
+                "HR Convergence": ">900",
+                "NDCG Convergence": ">900",
                 "HR@10": "N/A",
                 "NDCG@10": "N/A",
                 "HR@20": "N/A",
                 "NDCG@20": "N/A",
                 "HR@50": "N/A",
                 "NDCG@50": "N/A",
-                "Loss Convergence": "N/A",
-                "HR Convergence": "N/A",
-                "NDCG Convergence": "N/A",
-                "Loss Stability (Std)": "N/A",
-                "HR Stability (Std)": "N/A",
-                "NDCG Stability (Std)": "N/A",
                 "Local Training Time": "N/A",
                 "Aggregation Time": "N/A",
             })
             continue
 
-        local_cell = f"{r['Local Training Time']:.2f}s"
-        agg_cell = f"{r['Aggregation Time']:.2f}s"
+        # raw (baseline rows) or improvement-vs-LoRA (non-baseline rows)
+        if _is_baseline_method(method) or lora_row is None:
+            loss_std_txt = _fmt(r["Loss Delta Stability (Std)"], 4)
+            hr_std_txt = _fmt(r["HR Delta Stability (Std)"], 4)
+            ndcg_std_txt = _fmt(r["NDCG Delta Stability (Std)"], 4)
+
+            hr10_txt = _fmt(r["HR@10"], 4)
+            ndcg10_txt = _fmt(r["NDCG@10"], 4)
+            hr20_txt = _fmt(r["HR@20"], 4)
+            ndcg20_txt = _fmt(r["NDCG@20"], 4)
+            hr50_txt = _fmt(r["HR@50"], 4)
+            ndcg50_txt = _fmt(r["NDCG@50"], 4)
+
+            local_txt = _fmt(r["Local Training Time"], 4)
+            agg_txt = _fmt(r["Aggregation Time"], 4)
+        else:
+            # stability/time: lower is better
+            loss_std_txt = _fmt_with_improve(r["Loss Delta Stability (Std)"], lora_row["Loss Delta Stability (Std)"], higher_better=False, nd=4)
+            hr_std_txt = _fmt_with_improve(r["HR Delta Stability (Std)"], lora_row["HR Delta Stability (Std)"], higher_better=False, nd=4)
+            ndcg_std_txt = _fmt_with_improve(r["NDCG Delta Stability (Std)"], lora_row["NDCG Delta Stability (Std)"], higher_better=False, nd=4)
+
+            # accuracy: higher is better
+            hr10_txt = _fmt_with_improve(r["HR@10"], lora_row["HR@10"], higher_better=True, nd=4)
+            ndcg10_txt = _fmt_with_improve(r["NDCG@10"], lora_row["NDCG@10"], higher_better=True, nd=4)
+            hr20_txt = _fmt_with_improve(r["HR@20"], lora_row["HR@20"], higher_better=True, nd=4)
+            ndcg20_txt = _fmt_with_improve(r["NDCG@20"], lora_row["NDCG@20"], higher_better=True, nd=4)
+            hr50_txt = _fmt_with_improve(r["HR@50"], lora_row["HR@50"], higher_better=True, nd=4)
+            ndcg50_txt = _fmt_with_improve(r["NDCG@50"], lora_row["NDCG@50"], higher_better=True, nd=4)
+
+            local_txt = _fmt_with_improve(r["Local Training Time"], lora_row["Local Training Time"], higher_better=False, nd=4)
+            agg_txt = _fmt_with_improve(r["Aggregation Time"], lora_row["Aggregation Time"], higher_better=False, nd=4)
+
+        loss_conv_txt = _fmt_conv(r["Loss Convergence"])
+        hr_conv_txt = _fmt_conv(r["HR Convergence"])
+        ndcg_conv_txt = _fmt_conv(r["NDCG Convergence"])
 
         print(
-            f"| {r['Method']} "
-            f"| {_fmt(r['HR@10'])} "
-            f"| {_fmt(r['NDCG@10'])} "
-            f"| {_fmt(r['HR@20'])} "
-            f"| {_fmt(r['NDCG@20'])} "
-            f"| {_fmt(r['HR@50'])} "
-            f"| {_fmt(r['NDCG@50'])} "
-            f"| {_fmt(r['Loss Convergence'], 0)} "
-            f"| {_fmt(r['HR Convergence'], 0)} "
-            f"| {_fmt(r['NDCG Convergence'], 0)} "
-            f"| {_fmt(r['Loss Stability (Std)'], 8)} "
-            f"| {_fmt(r['HR Stability (Std)'], 8)} "
-            f"| {_fmt(r['NDCG Stability (Std)'], 8)} "
-            f"| {local_cell} "
-            f"| {agg_cell} |"
+            f"| {method} "
+            f"| {loss_std_txt} "
+            f"| {hr_std_txt} "
+            f"| {ndcg_std_txt} "
+            f"| {loss_conv_txt} "
+            f"| {hr_conv_txt} "
+            f"| {ndcg_conv_txt} "
+            f"| {hr10_txt} "
+            f"| {ndcg10_txt} "
+            f"| {hr20_txt} "
+            f"| {ndcg20_txt} "
+            f"| {hr50_txt} "
+            f"| {ndcg50_txt} "
+            f"| {local_txt} "
+            f"| {agg_txt} |"
         )
 
         csv_rows.append({
-            "Method": r["Method"],
-            "HR@10": _fmt(r["HR@10"]),
-            "NDCG@10": _fmt(r["NDCG@10"]),
-            "HR@20": _fmt(r["HR@20"]),
-            "NDCG@20": _fmt(r["NDCG@20"]),
-            "HR@50": _fmt(r["HR@50"]),
-            "NDCG@50": _fmt(r["NDCG@50"]),
-            "Loss Convergence": _fmt(r["Loss Convergence"], 0),
-            "HR Convergence": _fmt(r["HR Convergence"], 0),
-            "NDCG Convergence": _fmt(r["NDCG Convergence"], 0),
-            "Loss Stability (Std)": _fmt(r["Loss Stability (Std)"], 8),
-            "HR Stability (Std)": _fmt(r["HR Stability (Std)"], 8),
-            "NDCG Stability (Std)": _fmt(r["NDCG Stability (Std)"], 8),
-            "Local Training Time": local_cell,
-            "Aggregation Time": agg_cell,
+            "Method": method,
+            "Loss Delta Stability (Std)": loss_std_txt,
+            "HR Delta Stability (Std)": hr_std_txt,
+            "NDCG Delta Stability (Std)": ndcg_std_txt,
+            "Loss Convergence": loss_conv_txt,
+            "HR Convergence": hr_conv_txt,
+            "NDCG Convergence": ndcg_conv_txt,
+            "HR@10": hr10_txt,
+            "NDCG@10": ndcg10_txt,
+            "HR@20": hr20_txt,
+            "NDCG@20": ndcg20_txt,
+            "HR@50": hr50_txt,
+            "NDCG@50": ndcg50_txt,
+            "Local Training Time": local_txt,
+            "Aggregation Time": agg_txt,
         })
 
     CSV_OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -353,18 +405,18 @@ def main():
             f,
             fieldnames=[
                 "Method",
+                "Loss Delta Stability (Std)",
+                "HR Delta Stability (Std)",
+                "NDCG Delta Stability (Std)",
+                "Loss Convergence",
+                "HR Convergence",
+                "NDCG Convergence",
                 "HR@10",
                 "NDCG@10",
                 "HR@20",
                 "NDCG@20",
                 "HR@50",
                 "NDCG@50",
-                "Loss Convergence",
-                "HR Convergence",
-                "NDCG Convergence",
-                "Loss Stability (Std)",
-                "HR Stability (Std)",
-                "NDCG Stability (Std)",
                 "Local Training Time",
                 "Aggregation Time",
             ],

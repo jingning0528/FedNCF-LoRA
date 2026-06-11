@@ -668,6 +668,7 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
 
             round_start = time.perf_counter()
             local_train_time = 0.0
+            client_train_times = []  # ADDED
 
             select_users = self.server.select_clients(
                 self.user_num,
@@ -692,7 +693,9 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
                     self.compressed
                 )
 
-                local_train_time += time.perf_counter() - t0
+                dt = time.perf_counter() - t0  # ADDED
+                local_train_time += dt
+                client_train_times.append(dt)  # ADDED
 
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
@@ -714,18 +717,37 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
             torch.cuda.empty_cache()
 
             round_time = time.perf_counter() - round_start
-            avg_client_train_time = local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+            if len(client_train_times) > 0:
+                avg_client_train_time = local_train_time / len(client_train_times)
+                max_client_train_time = max(client_train_times)
+                min_client_train_time = min(client_train_times)
+                median_client_train_time = float(np.median(client_train_times))
+            else:
+                avg_client_train_time = 0.0
+                max_client_train_time = 0.0
+                min_client_train_time = 0.0
+                median_client_train_time = 0.0
 
             logging.info(
                 f"[Time] turn={turn} "
                 f"local_train_time={local_train_time:.4f}s "
                 f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"max_client_train_time={max_client_train_time:.6f}s "
+                f"min_client_train_time={min_client_train_time:.6f}s "
+                f"median_client_train_time={median_client_train_time:.6f}s "
                 f"aggregation_time={agg_time:.4f}s "
                 f"round_time={round_time:.4f}s"
             )
 
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
+                logging.info(  # ADDED: explicitly for evaluation rounds
+                    f"[EvalRoundClientTime] turn={turn} "
+                    f"avg={avg_client_train_time:.6f}s "
+                    f"max={max_client_train_time:.6f}s "
+                    f"min={min_client_train_time:.6f}s "
+                    f"median={median_client_train_time:.6f}s"
+                )
 
                 eval_start = time.perf_counter()
 

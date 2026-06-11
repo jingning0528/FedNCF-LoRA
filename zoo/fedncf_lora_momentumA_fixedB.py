@@ -556,14 +556,12 @@ class FedNCF_Lora_MomentumA_FixedB:
 
         if not self.compressed:
             pre_start = time.perf_counter()
-
             item_feature = self.dataload.get_item_feature()
 
             for turn in range(self.pre_epoch):
                 loss = self.g_model.train_step(item_feature)
 
             latent = self.g_model.get_latent(item_feature)
-
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
 
@@ -574,11 +572,9 @@ class FedNCF_Lora_MomentumA_FixedB:
 
             round_start = time.perf_counter()
             local_train_time = 0.0
+            client_train_times = []
 
-            select_users = self.server.select_clients(
-                self.user_num,
-                self.clients_num_per_turn
-            )
+            select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
 
             client_model = []
             client_local_data_num = []
@@ -589,7 +585,6 @@ class FedNCF_Lora_MomentumA_FixedB:
                 self.client.load_model(self.server.distribute_model(user))
 
                 t0 = time.perf_counter()
-
                 loss = self.client.local_train(
                     user,
                     self.local_epoch,
@@ -597,15 +592,16 @@ class FedNCF_Lora_MomentumA_FixedB:
                     turn < 20,
                     self.compressed
                 )
+                dt = time.perf_counter() - t0
 
-                local_train_time += time.perf_counter() - t0
+                local_train_time += dt
+                client_train_times.append(dt)
 
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
-
             self.server.aggregation(
                 select_users,
                 client_model,
@@ -614,35 +610,52 @@ class FedNCF_Lora_MomentumA_FixedB:
                 self.cdp,
                 self.ldp
             )
-
             agg_time = time.perf_counter() - agg_start
 
-            torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             round_time = time.perf_counter() - round_start
-            avg_client_train_time = local_train_time / len(select_users) if len(select_users) > 0 else 0.0
+
+            if len(client_train_times) > 0:
+                avg_client_train_time = local_train_time / len(client_train_times)
+                max_client_train_time = max(client_train_times)
+                min_client_train_time = min(client_train_times)
+                median_client_train_time = float(np.median(client_train_times))
+            else:
+                avg_client_train_time = 0.0
+                max_client_train_time = 0.0
+                min_client_train_time = 0.0
+                median_client_train_time = 0.0
 
             logging.info(
                 f"[Time] turn={turn} "
                 f"local_train_time={local_train_time:.4f}s "
                 f"avg_client_train_time={avg_client_train_time:.6f}s "
+                f"max_client_train_time={max_client_train_time:.6f}s "
+                f"min_client_train_time={min_client_train_time:.6f}s "
+                f"median_client_train_time={median_client_train_time:.6f}s "
                 f"aggregation_time={agg_time:.4f}s "
                 f"round_time={round_time:.4f}s"
             )
 
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
+                logging.info(
+                    f"[EvalRoundClientTime] turn={turn} "
+                    f"avg={avg_client_train_time:.6f}s "
+                    f"max={max_client_train_time:.6f}s "
+                    f"min={min_client_train_time:.6f}s "
+                    f"median={median_client_train_time:.6f}s"
+                )
 
                 eval_start = time.perf_counter()
-
                 self.server.evaluate(self.dataload, range(self.user_num))
-
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
 
         logging.info("********* Final Test*********")
 
         final_eval_start = time.perf_counter()
-
         results = self.server.evaluate(self.dataload, range(self.user_num))
 
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")

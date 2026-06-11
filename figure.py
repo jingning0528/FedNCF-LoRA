@@ -16,8 +16,22 @@ FIG_DIR = REPO_ROOT / "figures"
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
 
+    # "software/FedNCF-Full.txt",
+    # "software/FedNCF-LoRA.txt",
+    # "software/MoFiLoRA.txt",
+    # "software/MoFiLoRA-0.9-2.0.txt",
+    # "software/MoFiLoRA-0.9-1.0.txt",
+    # "software/MoFiLoRA-0.8-0.5.txt",
+    # "software/MoFiLoRA-0.99-1.0.txt",
+    # "software/MoFiLoRA-0.8-2.0.txt",
 
+    "industrial/FedNCF-Full.txt",
     "industrial/FedNCF-LoRA.txt",
+    "industrial/MoFiLoRA.txt",
+    # "industrial/MoFiLoRA-0.9-1.0.txt",
+    # "industrial/MoFiLoRA-0.9-0.5.txt",
+    # "industrial/MoFiLoRA-0.8-1.0.txt",
+
 
     # **************************************baseline********************************
     # "baseline_1000/FedNCF-Full.txt",
