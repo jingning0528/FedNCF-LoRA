@@ -1,17 +1,10 @@
 """
-Basic LoRA + Fixed B + Server Optimizer on A.
-
+Basic LoRA + Fixed B + Momentum on A.
 Minimum changes:
 - Freeze B = embedding_item.linear
 - Do not update B on client
 - Do not aggregate B on server
-- Add server optimizer only for A = embedding_item.emb
-
-Supported server_optimizer:
-- "none"
-- "heavyball"
-- "ema_norm"
-- "adam"
+- Add momentum aggregation only for A = embedding_item.emb
 """
 
 from collections import OrderedDict
@@ -153,9 +146,9 @@ class model(BaseModel):
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)
-        self.embedding_item.emb.weight.requires_grad_(True)
-        self.embedding_item.linear.weight.requires_grad_(False)
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p after warmup
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: A trainable
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze B
 
         self.optimizer.zero_grad()
 
@@ -183,9 +176,9 @@ class model(BaseModel):
     def train_step_triple_c(self, users, pos, neg, global_model=None):
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)
-        self.embedding_item.emb.weight.requires_grad_(True)
-        self.embedding_item.linear.weight.requires_grad_(False)
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
+        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: A trainable
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze B
 
         self.optimizer.zero_grad()
 
@@ -213,9 +206,9 @@ class model(BaseModel):
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
         self.train()
 
-        self.embedding_p.weight.requires_grad_(True)
-        self.embedding_item.emb.weight.requires_grad_(False)
-        self.embedding_item.linear.weight.requires_grad_(False)
+        self.embedding_p.weight.requires_grad_(True)  # CHANGED: correctly train base embedding_p during warmup
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: do not train A during warmup
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: keep B fixed during warmup
 
         self.optimizer.zero_grad()
 
@@ -257,7 +250,7 @@ class Client(ClientBase):
             self.global_model = copy.deepcopy(self.model.state_dict())
 
     def upload_model(self):
-        # fixed B: do not upload embedding_item.linear
+        # CHANGED: fixed B, do not upload embedding_item.linear
         full_state = self.model.state_dict()
         upload_state = {
             k: v.clone()
@@ -295,7 +288,7 @@ class Client(ClientBase):
 
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
-                    loss = self.model.train_step(users, items, labels, self.global_model)
+                    loss = self.model.train_step(users, items, labels, self.global_model)  # CHANGED: fixed wrong pos/neg
                 else:
                     loss = self.model.train_step(users, items, labels)
 
@@ -308,46 +301,16 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(
-        self,
-        model,
-        server_optimizer="ema_norm",          # ADDED
-        beta=0.9,
-        eta_s=1.0,
-        server_adam_beta1=0.9,               # ADDED
-        server_adam_beta2=0.99,              # ADDED
-        server_adam_eps=1e-8                 # ADDED
-    ):
+    def __init__(self, model, beta=0.9, eta_s=1.0):  # CHANGED: add momentum configs
         super().__init__(model)
 
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
 
-        # ===== ADDED: server optimizer configs =====
-        self.server_optimizer = server_optimizer
-        self.beta = beta
-        self.eta_s = eta_s
+        self.beta = beta  # CHANGED: momentum coefficient
+        self.eta_s = eta_s  # CHANGED: server learning rate
 
-        self.server_adam_beta1 = server_adam_beta1
-        self.server_adam_beta2 = server_adam_beta2
-        self.server_adam_eps = server_adam_eps
-        # ==========================================
-
-        # ===== CHANGED: buffers for different server optimizers =====
-        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
-
-        self.adam_m_A = torch.zeros_like(self.model.embedding_item.emb.weight)
-        self.adam_v_A = torch.zeros_like(self.model.embedding_item.emb.weight)
-        self.adam_t = 0
-        # ===========================================================
-
-        logging.info(
-            f"[Server Optimizer] method={self.server_optimizer}, "
-            f"beta={self.beta}, eta_s={self.eta_s}, "
-            f"adam_beta1={self.server_adam_beta1}, "
-            f"adam_beta2={self.server_adam_beta2}, "
-            f"adam_eps={self.server_adam_eps}"
-        )
+        self.v_A = torch.zeros_like(self.model.embedding_item.emb.weight)  # CHANGED: momentum buffer for A
 
     def count_parameters(self):
         self.model.eval()
@@ -378,7 +341,7 @@ class Server(ServerBase):
         for name in base_model_dict.keys():
 
             if "embedding_item.linear" in name:
-                # fixed B: do not aggregate B
+                # CHANGED: fixed B, do not aggregate B
                 continue
 
             elif "embedding_user" in name:
@@ -386,69 +349,22 @@ class Server(ServerBase):
                     base_model_dict[name].data[user] = model[name].data[user]
 
             elif "embedding_item.emb" in name:
-                # ===== CHANGED: server optimizer update for A only =====
-
+                # CHANGED: momentum aggregation for A only
                 A_bar = sum([
                     model[name] * num
                     for model, num in zip(model_list, num_list)
                 ]) / data_num
 
-                A_old = base_model_dict[name]
-                delta_A = A_bar - A_old
+                delta_A = A_bar - base_model_dict[name]
 
-                if self.server_optimizer == "none":
-                    # FedAvg-style aggregation for A
-                    A_new = A_bar
+                # self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
+                # EMA-style momentum
+                self.v_A = (
+                    self.beta * self.v_A.to(A_bar.device)
+                    + (1 - self.beta) * delta_A
+                )
 
-                elif self.server_optimizer == "heavyball":
-                    # Heavy-ball:
-                    # v_t = beta * v_{t-1} + delta_A
-                    # A_t = A_{t-1} + eta_s * v_t
-                    self.v_A = self.beta * self.v_A.to(A_bar.device) + delta_A
-                    A_new = A_old + self.eta_s * self.v_A
-
-                elif self.server_optimizer == "ema_norm":
-                    # EMA-style momentum:
-                    # v_t = beta * v_{t-1} + (1-beta) * delta_A
-                    # A_t = A_{t-1} + eta_s * v_t
-                    self.v_A = (
-                        self.beta * self.v_A.to(A_bar.device)
-                        + (1 - self.beta) * delta_A
-                    )
-                    A_new = A_old + self.eta_s * self.v_A
-
-                elif self.server_optimizer == "adam":
-                    # Server Adam:
-                    # m_t = beta1*m_{t-1} + (1-beta1)*delta_A
-                    # v_t = beta2*v_{t-1} + (1-beta2)*delta_A^2
-                    # A_t = A_{t-1} + eta_s * m_hat / (sqrt(v_hat)+eps)
-
-                    self.adam_t += 1
-
-                    self.adam_m_A = (
-                        self.server_adam_beta1 * self.adam_m_A.to(A_bar.device)
-                        + (1 - self.server_adam_beta1) * delta_A
-                    )
-
-                    self.adam_v_A = (
-                        self.server_adam_beta2 * self.adam_v_A.to(A_bar.device)
-                        + (1 - self.server_adam_beta2) * (delta_A * delta_A)
-                    )
-
-                    m_hat = self.adam_m_A / (1 - self.server_adam_beta1 ** self.adam_t)
-                    v_hat = self.adam_v_A / (1 - self.server_adam_beta2 ** self.adam_t)
-
-                    A_new = A_old + self.eta_s * m_hat / (
-                        torch.sqrt(v_hat) + self.server_adam_eps
-                    )
-
-                else:
-                    raise ValueError(
-                        f"Unknown server_optimizer={self.server_optimizer}. "
-                        f"Choose from ['none', 'heavyball', 'ema_norm', 'adam']."
-                    )
-
-                base_model_dict[name] = A_new
+                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_A
 
                 if cdp is not None and cdp > 0.:
                     base_model_dict[name] += torch.normal(
@@ -467,8 +383,6 @@ class Server(ServerBase):
                         for _ in range(len(user_list))
                     ]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
-
-                # =======================================================
 
             else:
                 base_model_dict[name] = sum([
@@ -538,7 +452,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_MomentumA_FixedB_Finetune:
+class LoRA_MomA_FixedB_Oneway:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -583,16 +497,8 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
 
         self.server = Server(
             server_model,
-
-            # ===== CHANGED: read server optimizer configs from YAML =====
-            server_optimizer=kwargs.get("server_optimizer", "ema_norm"),
-            beta=float(kwargs.get("beta", 0.9)),
-            eta_s=float(kwargs.get("eta_s", 1.0)),
-
-            server_adam_beta1=float(kwargs.get("server_adam_beta1", 0.9)),
-            server_adam_beta2=float(kwargs.get("server_adam_beta2", 0.99)),
-            server_adam_eps=float(kwargs.get("server_adam_eps", 1e-8)),
-            # ===========================================================
+            beta=float(kwargs.get("beta", 0.9)),  # CHANGED: read beta from YAML
+            eta_s=float(kwargs.get("eta_s", 1.0))  # CHANGED: read eta_s from YAML
         )
 
         self.client = Client(
@@ -650,14 +556,12 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
 
         if not self.compressed:
             pre_start = time.perf_counter()
-
             item_feature = self.dataload.get_item_feature()
 
             for turn in range(self.pre_epoch):
                 loss = self.g_model.train_step(item_feature)
 
             latent = self.g_model.get_latent(item_feature)
-
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
 
@@ -668,12 +572,9 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
 
             round_start = time.perf_counter()
             local_train_time = 0.0
-            client_train_times = []  # ADDED
+            client_train_times = []
 
-            select_users = self.server.select_clients(
-                self.user_num,
-                self.clients_num_per_turn
-            )
+            select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
 
             client_model = []
             client_local_data_num = []
@@ -684,7 +585,6 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
                 self.client.load_model(self.server.distribute_model(user))
 
                 t0 = time.perf_counter()
-
                 loss = self.client.local_train(
                     user,
                     self.local_epoch,
@@ -692,17 +592,16 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
                     turn < 20,
                     self.compressed
                 )
+                dt = time.perf_counter() - t0
 
-                dt = time.perf_counter() - t0  # ADDED
                 local_train_time += dt
-                client_train_times.append(dt)  # ADDED
+                client_train_times.append(dt)
 
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
-
             self.server.aggregation(
                 select_users,
                 client_model,
@@ -711,12 +610,13 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
                 self.cdp,
                 self.ldp
             )
-
             agg_time = time.perf_counter() - agg_start
 
-            torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             round_time = time.perf_counter() - round_start
+
             if len(client_train_times) > 0:
                 avg_client_train_time = local_train_time / len(client_train_times)
                 max_client_train_time = max(client_train_times)
@@ -741,7 +641,7 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
 
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
-                logging.info(  # ADDED: explicitly for evaluation rounds
+                logging.info(
                     f"[EvalRoundClientTime] turn={turn} "
                     f"avg={avg_client_train_time:.6f}s "
                     f"max={max_client_train_time:.6f}s "
@@ -750,15 +650,12 @@ class FedNCF_Lora_MomentumA_FixedB_Finetune:
                 )
 
                 eval_start = time.perf_counter()
-
                 self.server.evaluate(self.dataload, range(self.user_num))
-
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
 
         logging.info("********* Final Test*********")
 
         final_eval_start = time.perf_counter()
-
         results = self.server.evaluate(self.dataload, range(self.user_num))
 
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")

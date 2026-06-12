@@ -1,9 +1,21 @@
 """
-Basic LoRA variant: Fixed A only, no momentum.
-After warmup:
-- A = embedding_item.emb is fixed/frozen and kept unchanged on the server
-- B = embedding_item.linear is trainable locally and aggregated by normal FedAvg
-- embedding_p is frozen after warmup and used as the base item embedding
+Perifanis V, Efraimidis P S. Federated neural collaborative filtering
+[J]. Knowledge-Based Systems, 2022, 242: 108441.
+
+@article{DBLP:journals/kbs/PerifanisE22,
+  author       = {Vasileios Perifanis and
+                  Pavlos S. Efraimidis},
+  title        = {Federated Neural Collaborative Filtering},
+  journal      = {Knowl. Based Syst.},
+  volume       = {242},
+  pages        = {108441},
+  year         = {2022},
+  url          = {https://doi.org/10.1016/j.knosys.2022.108441},
+  doi          = {10.1016/J.KNOSYS.2022.108441},
+  timestamp    = {Fri, 22 Mar 2024 09:01:07 +0100},
+  biburl       = {https://dblp.org/rec/journals/kbs/PerifanisE22.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
 """
 
 from collections import OrderedDict
@@ -21,58 +33,47 @@ from framework.modules.layers import MLP_Block
 from framework.utils import calculate_model_size
 from thop import profile
 
-
 class model(BaseModel):
     def __init__(self, 
                  user_num, 
-                 item_num,
-                 embedding_dim,
-                 hidden_activations,
-                 hidden_units,
+                 item_num, 
+                 embedding_dim, 
+                 hidden_activations, 
+                 hidden_units, 
                  latent_dim,
                  task,
-                 device,
-                 embedding_regularizer,
-                 net_regularizer,
+                 device, 
+                 embedding_regularizer, 
+                 net_regularizer, 
                  learning_rate,
                  optimizer,
                  loss_fn,
                  metrics,
                  *args, **kwargs):
-        super(__class__, self).__init__(
-            device=device,
-            embedding_regularizer=embedding_regularizer,
-            net_regularizer=net_regularizer,
-            metrics=metrics
-        )
-
+        super(__class__, self).__init__(device=device,
+                                  embedding_regularizer=embedding_regularizer, 
+                                  net_regularizer=net_regularizer,
+                                  metrics=metrics)
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
-
-        self.embedding_item = nn.Sequential(OrderedDict([
-            ('emb', nn.Embedding(item_num, latent_dim)),       # A
-            ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),  # B
-        ]))
-
+        self.embedding_item = nn.Sequential(OrderedDict([('emb', nn.Embedding(item_num, latent_dim)), 
+                                                      ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),
+                                                      ]))
         self.embedding_p = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
-
-        self.mlp = MLP_Block(
-            input_dim=embedding_dim * 2,
-            output_dim=1,
-            hidden_units=hidden_units,
-            hidden_activations=hidden_activations,
-            dropout_rates=.5,
-        )
-
+        self.mlp = MLP_Block(input_dim = embedding_dim * 2,
+                             output_dim=1,
+                             hidden_units=hidden_units,
+                             hidden_activations=hidden_activations,
+                             dropout_rates=.5,
+                             )
         self.task = task
         self.fedop = optimizer
-        self.output_activation = nn.Sigmoid()
-
+        self.output_activation= nn.Sigmoid()
         self.reset_parameters()
         self.__init_weight()
         self.compile(optimizer=optimizer, loss=loss_fn, lr=learning_rate)
         self.model_to_device()
 
-    def __init_weight(self):
+    def __init_weight(self, ):
         nn.init.normal_(self.embedding_item.emb.weight, std=0.1)
         nn.init.zeros_(self.embedding_item.linear.weight)
         nn.init.normal_(self.embedding_user.weight, std=0.1)
@@ -85,157 +86,100 @@ class model(BaseModel):
         return self.embedding_item(item_id)
 
     def forward(self, user_id, item_id):
-        output = self.mlp(torch.cat([
-            self.embedding_user(user_id),
-            self.emb_item(item_id)
-        ], -1))
+        output = self.mlp(torch.cat([self.embedding_user(user_id),self.emb_item(item_id)], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
             return output
-
         return output
 
     def forward_c(self, user_id, item_id):
-        output = self.mlp(torch.cat([
-            self.embedding_user(user_id),
-            self.emb_item_c(item_id)
-        ], -1))
+        output = self.mlp(torch.cat([self.embedding_user(user_id),self.emb_item_c(item_id)], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
             return output
-
         return output
-
+    
     def forward_pre(self, user_id, item_id):
-        output = self.mlp(torch.cat([
-            self.embedding_user(user_id),
-            self.embedding_p(item_id)
-        ], -1))
+        output = self.mlp(torch.cat([self.embedding_user(user_id),self.embedding_p(item_id)], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
             if self.task == "regression":
                 output = output * 4.0 + 1.0
             return output
-
         return output
 
     def train_step(self, users, items, label, global_model=None):
         self.train()
         self.optimizer.zero_grad()
-
         pred = self.forward(users, items).squeeze()
         loss = self.loss_fn(pred, label, reduction='mean') + self.add_regularization()
-
         loss.backward()
-
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
-
         return loss
-
+    
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
-
-        self.embedding_p.weight.requires_grad_(False)
-        self.embedding_item.emb.weight.requires_grad_(False)      # CHANGED: fixed A
-        self.embedding_item.linear.weight.requires_grad_(True)    # CHANGED: train B only
-
+        self.embedding_p.requires_grad_ = False
         self.optimizer.zero_grad()
-
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
-
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
-                self.embedding_user.weight[users[0]],
-                self.emb_item(pos),
-                self.emb_item(neg),
-            )
+            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item(pos), self.emb_item(neg),)
         else:
-            loss = self.loss_fn(pred_pos, pred_neg)
-
+            loss = self.loss_fn(pred_pos, pred_neg, )
         loss.backward()
-
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
-
         return loss
 
     def train_step_triple_c(self, users, pos, neg, global_model=None):
         self.train()
-
-        self.embedding_p.weight.requires_grad_(False)
-        self.embedding_item.emb.weight.requires_grad_(False)      # CHANGED: fixed A
-        self.embedding_item.linear.weight.requires_grad_(True)    # CHANGED: train B only
-
+        self.embedding_p.requires_grad_ = False
         self.optimizer.zero_grad()
-
         pred_pos = self.forward_c(users, pos)
         pred_neg = self.forward_c(users, neg)
-
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
-                self.embedding_user.weight[users[0]],
-                self.emb_item_c(pos),
-                self.emb_item_c(neg),
-            )
+            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item_c(pos), self.emb_item_c(neg),)
         else:
-            loss = self.loss_fn(pred_pos, pred_neg)
-
+            loss = self.loss_fn(pred_pos, pred_neg, )
         loss.backward()
-
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
-
         return loss
-
+    
     def train_step_triple_pre(self, users, pos, neg, global_model=None):
         self.train()
-
-        self.embedding_p.weight.requires_grad_(True)
-        self.embedding_item.emb.weight.requires_grad_(False)
-        self.embedding_item.linear.weight.requires_grad_(False)
-
+        self.embedding_p.requires_grad_ = True
         self.optimizer.zero_grad()
-
         pred_pos = self.forward_pre(users, pos)
         pred_neg = self.forward_pre(users, neg)
-
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg) + self.add_regularization_triple(
-                self.embedding_user.weight[users[0]],
-                self.embedding_p(pos),
-                self.embedding_p(neg),
-            )
+            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.embedding_p(pos), self.embedding_p(neg),)
         else:
-            loss = self.loss_fn(pred_pos, pred_neg)
-
+            loss = self.loss_fn(pred_pos, pred_neg, )
         loss.backward()
-
         if self.fedop == "fedprox":
             self.optimizer.step(global_model)
         else:
             self.optimizer.step()
-
         return loss
 
-
 class Client(ClientBase):
-    model: model
-
+    model:model
     def __init__(self, client_id, model, task, fedop):
         super().__init__(client_id, model)
         self.task = task.lower()
@@ -244,17 +188,14 @@ class Client(ClientBase):
     def load_model(self, model):
         super().load_model(model)
         self.model.to(self.model.device)
-
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
         self.model.train()
-
         if self.task == "triple":
             users, pos, neg = dataload.get_traindata(user)
             self.__local_data_num = users.size(0)
-
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
                     if compressed:
@@ -263,6 +204,7 @@ class Client(ClientBase):
                         loss = self.model.train_step_triple_pre(users, pos, neg, self.global_model)
                     else:
                         loss = self.model.train_step_triple(users, pos, neg, self.global_model)
+
                 else:
                     if compressed:
                         loss = self.model.train_step_triple_c(users, pos, neg)
@@ -270,38 +212,35 @@ class Client(ClientBase):
                         loss = self.model.train_step_triple_pre(users, pos, neg)
                     else:
                         loss = self.model.train_step_triple(users, pos, neg)
-
         else:
             users, items, labels = dataload.get_traindata(user)
             self.__local_data_num = labels.size(0)
-
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
-                    loss = self.model.train_step(users, items, labels, self.global_model)
+                    loss = self.model.train_step(users, pos, neg, self.global_model)
                 else:
                     loss = self.model.train_step(users, items, labels)
-
+        # logging.info("Client {} for user {}, train loss: {:.6f}".format(self.client_id, user, loss))
         return loss
-
+    
     def local_data_num(self):
         return self.__local_data_num
 
-
 class Server(ServerBase):
-    model: model
-
-    def __init__(self, model):
+    model:model
+    def __init__(self, model, ):
         super().__init__(model)
-
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
 
     def count_parameters(self):
+        # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
+        #                                             torch.tensor(1, dtype=torch.int64, device=self.model.device)))
+        # logging.info("FLOPs: {:.8f} MFLOPs".format(flops/ 1e6))
+        # logging.info("Param: {:.8f} M".format(params/ 1e6))
         self.model.eval()
         base_model_dict = copy.deepcopy(self.model.state_dict())
-
         model_size = 0.
-
         for name in base_model_dict.keys():
             if "embedding_user" in name:
                 continue
@@ -309,82 +248,28 @@ class Server(ServerBase):
                 _, param_size = calculate_model_size(base_model_dict[name])
                 logging.info("Model {} size: {:.8f}MB".format(name, param_size))
                 model_size += param_size
-
         self.model.load_weights(copy.deepcopy(base_model_dict))
         logging.info("Model all size: {:.8f}MB".format(model_size))
-
+    
     def distribute_model(self, user):
         return super().distribute_model()
-
+        
     def aggregation(self, user_list, model_list, num_list, loss_list, cdp=None, ldp=None):
         self.model.eval()
-
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
-
         for name in base_model_dict.keys():
-
             if "embedding_user" in name:
                 for model, user in zip(model_list, user_list):
                     base_model_dict[name].data[user] = model[name].data[user]
-
-            elif "embedding_item.emb" in name:
-                # CHANGED: fixed A
-                # A is frozen locally and stays unchanged on the server.
-                continue
-
-            elif "embedding_item.linear.weight" in name:
-                # CHANGED: no momentum, normal FedAvg for B
-                base_model_dict[name] = sum([
-                    model[name] * num
-                    for model, num in zip(model_list, num_list)
-                ]) / data_num
-
-                if cdp is not None and cdp > 0.:
-                    base_model_dict[name] += torch.normal(
-                        0,
-                        cdp,
-                        size=base_model_dict[name].size()
-                    ).to(self.model.device)
-
-                elif ldp is not None and ldp > 0.:
-                    noise_list = [
-                        torch.normal(
-                            0,
-                            ldp,
-                            size=base_model_dict[name].size()
-                        ).to(self.model.device)
-                        for _ in range(len(user_list))
-                    ]
-                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
-
             else:
-                # MLP, embedding_p, and other parameters use normal FedAvg
-                base_model_dict[name] = sum([
-                    model[name] * num
-                    for model, num in zip(model_list, num_list)
-                ]) / data_num
-
+                base_model_dict[name] = sum([model[name] * num for model, num in zip(model_list, num_list)]) / data_num
                 if cdp is not None and cdp > 0.:
-                    base_model_dict[name] += torch.normal(
-                        0,
-                        cdp,
-                        size=base_model_dict[name].size()
-                    ).to(self.model.device)
-
+                    base_model_dict[name] += torch.normal(0, cdp, size=base_model_dict[name].size()).to(self.model.device)
                 elif ldp is not None and ldp > 0.:
-                    noise_list = [
-                        torch.normal(
-                            0,
-                            ldp,
-                            size=base_model_dict[name].size()
-                        ).to(self.model.device)
-                        for _ in range(len(user_list))
-                    ]
+                    noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device) for _ in range(len(user_list))]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
-
         self.model.load_weights(copy.deepcopy(base_model_dict))
-
         logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
 
     def get_client_model(self, user):
@@ -392,65 +277,49 @@ class Server(ServerBase):
             self.model.embedding_p.load_state_dict(self.models[user])
         else:
             self.model.embedding_p.load_state_dict(self.global_model)
-
         self.model.to(self.model.device)
 
     def evaluate(self, dataload, user_list):
         self.model.eval()
-
         y_pred = []
         y_true = []
         group_id = []
-
         for user in user_list:
             users, items, labels = dataload.get_testdata(user)
-
             y_pred.extend(self.model.forward(users, items).data.cpu().numpy().reshape(-1))
             y_true.extend(labels.data.cpu().numpy().reshape(-1))
             group_id.extend(users.data.cpu().numpy().reshape(-1))
-
         y_pred = np.array(y_pred, np.float64)
         y_true = np.array(y_true, np.float64)
         group_id = np.array(group_id) if len(group_id) > 0 else None
-
-        val_logs = self.model.evaluate_metrics(
-            y_true,
-            y_pred,
-            self.model.metrcis,
-            group_id
-        )
-
-        logging.info('[Metrics] ' + ' - '.join(
-            '{}: {:.6f}'.format(k, v) for k, v in val_logs.items()
-        ))
-
+        val_logs = self.model.evaluate_metrics(y_true, y_pred, self.model.metrcis, group_id)
+        logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-
-class FedNCF_Lora_FixedA:
+class Analyze_LoRA:
     def __init__(self, 
-                 dataload: BaseDataLoaderFL,
-                 clients_num_per_turn,
-                 local_epoch,
+                 dataload:BaseDataLoaderFL,
+                 clients_num_per_turn, 
+                 local_epoch, 
                  train_turn,
                  user_num,
                  item_num,
                  embedding_dim,
-                 hidden_activations,
-                 hidden_units,
-                 output_dim,
+                 hidden_activations, 
+                 hidden_units, 
+                 output_dim, 
                  latent_dim,
-                 device,
-                 embedding_regularizer,
-                 net_regularizer,
+                 device, 
+                 embedding_regularizer, 
+                 net_regularizer, 
                  learning_rate,
-                 optimizer,
+                 optimizer, 
                  loss_fn,
                  metrics,
                  task,
-                 *args, **kwargs):
-
-        server_model = model(
+                 *args, **kwargs
+                 ):
+        server_model =  model(
             user_num=user_num,
             item_num=item_num,
             embedding_dim=embedding_dim,
@@ -460,56 +329,44 @@ class FedNCF_Lora_FixedA:
             latent_dim=latent_dim,
             task=task.lower(),
             device=device,
-            embedding_regularizer=embedding_regularizer,
-            net_regularizer=net_regularizer,
+            embedding_regularizer=embedding_regularizer, 
+            net_regularizer=net_regularizer, 
             learning_rate=learning_rate,
             optimizer=optimizer,
             loss_fn=loss_fn,
             metrics=metrics,
         )
-
         server_model.reset_parameters()
-
-        self.server = Server(server_model)  # CHANGED: no momentum args
-
-        self.client = Client(
-            client_id=0,
-            model=model(
-                user_num=user_num,
-                item_num=item_num,
-                embedding_dim=embedding_dim,
-                hidden_activations=hidden_activations,
-                hidden_units=hidden_units,
-                output_dim=output_dim,
-                latent_dim=latent_dim,
-                task=task.lower(),
-                device=device,
-                embedding_regularizer=embedding_regularizer,
-                net_regularizer=net_regularizer,
-                learning_rate=learning_rate,
-                optimizer=optimizer,
-                loss_fn=loss_fn,
-                metrics=metrics,
-            ),
+        self.server = Server(server_model)
+        self.client = Client(client_id=0, model=model(
+            user_num=user_num,
+            item_num=item_num,
+            embedding_dim=embedding_dim,
+            hidden_activations=hidden_activations,
+            hidden_units=hidden_units,
+            output_dim=output_dim,
+            latent_dim=latent_dim,
             task=task.lower(),
-            fedop=optimizer.lower()
-        )
-
-        self.g_model = AE(
-            hidden_units=kwargs["g_hidden_units"],
-            hidden_activations=kwargs["g_hidden_activations"],
-            embedding_dim=kwargs["sen_embedding_dim"],
-            embedding_dim_latent=embedding_dim,
             device=device,
-            embedding_regularizer=0.,
-            net_regularizer=1e-2,
-            learning_rate=1e-4,
-            optimizer="adam",
-            loss_fn="mse_loss",
-        )
-
+            embedding_regularizer=embedding_regularizer, 
+            net_regularizer=net_regularizer, 
+            learning_rate=learning_rate,
+            optimizer=optimizer,
+            loss_fn=loss_fn,
+            metrics=metrics,
+        ), task=task.lower(), fedop=optimizer.lower()) 
+        self.g_model = AE(hidden_units = kwargs["g_hidden_units"],
+                hidden_activations = kwargs["g_hidden_activations"],
+                embedding_dim = kwargs["sen_embedding_dim"], 
+                embedding_dim_latent = embedding_dim,
+                device = device, 
+                embedding_regularizer=0., 
+                net_regularizer=1e-2, 
+                learning_rate=1e-4,
+                optimizer="adam",
+                loss_fn = "mse_loss",)
         self.clients_num_per_turn = clients_num_per_turn
-        self.local_epoch = local_epoch
+        self.local_epoch =  local_epoch
         self.train_turn = train_turn
         self.user_num = user_num
         self.task = task.lower()
@@ -520,25 +377,110 @@ class FedNCF_Lora_FixedA:
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
-    def fit(self):
-        fit_start = time.perf_counter()
+    def _get_lora_A_B(self):
+        """
+        Return LoRA A and B matrices from the current server model.
 
+        In this implementation:
+        - A = embedding_item.emb.weight, shape [item_num, latent_dim]
+        - B = embedding_item.linear.weight, shape [embedding_dim, latent_dim]
+
+        Because nn.Linear computes x @ weight.T, the effective LoRA item
+        embedding matrix is A @ B.T, shape [item_num, embedding_dim].
+        """
+        A = self.server.model.embedding_item.emb.weight.detach().clone()
+        B = self.server.model.embedding_item.linear.weight.detach().clone()
+        return A, B
+
+    def _compute_ab_convergence_metrics(self, prev_A, prev_B, prev_delta_A=None, prev_delta_B=None):
+        """
+        Compute A/B convergence tracking metrics between two adjacent rounds.
+
+        Metrics:
+        1. Matrix magnitude:
+           ||Delta A_t||_F = ||A_{t+1} - A_t||_F
+           ||Delta B_t||_F = ||B_{t+1} - B_t||_F
+
+        2. Normalized matrix magnitude:
+           ||Delta A_t||_F / ||A_t||_F
+           ||Delta B_t||_F / ||B_t||_F
+
+        3. Cosine similarity of update directions:
+           cos(Delta A_t, Delta A_{t-1})
+           cos(Delta B_t, Delta B_{t-1})
+
+           Note: the denominator should use update norms:
+           ||Delta A_t||_F * ||Delta A_{t-1}||_F,
+           not ||A_t||_F * ||A_{t-1}||_F.
+
+        4. Effective embedding update:
+           ||A_{t+1} B_{t+1}^T - A_t B_t^T||_F
+        """
+        eps = 1e-12
+        curr_A, curr_B = self._get_lora_A_B()
+
+        delta_A = curr_A - prev_A
+        delta_B = curr_B - prev_B
+
+        delta_A_norm = torch.norm(delta_A, p="fro")
+        delta_B_norm = torch.norm(delta_B, p="fro")
+
+        prev_A_norm = torch.norm(prev_A, p="fro")
+        prev_B_norm = torch.norm(prev_B, p="fro")
+
+        norm_delta_A = delta_A_norm / (prev_A_norm + eps)
+        norm_delta_B = delta_B_norm / (prev_B_norm + eps)
+
+        if prev_delta_A is None:
+            cos_delta_A = torch.tensor(float("nan"), device=curr_A.device)
+        else:
+            cos_delta_A = torch.sum(delta_A * prev_delta_A) / (
+                torch.norm(delta_A, p="fro") * torch.norm(prev_delta_A, p="fro") + eps
+            )
+
+        if prev_delta_B is None:
+            cos_delta_B = torch.tensor(float("nan"), device=curr_B.device)
+        else:
+            cos_delta_B = torch.sum(delta_B * prev_delta_B) / (
+                torch.norm(delta_B, p="fro") * torch.norm(prev_delta_B, p="fro") + eps
+            )
+
+        # Effective item embedding update.
+        # A: [item_num, r], B: [embedding_dim, r]
+        # nn.Linear uses B.T, so effective item embedding = A @ B.T.
+        prev_effective_item = prev_A @ prev_B.t()
+        curr_effective_item = curr_A @ curr_B.t()
+        effective_item_update_norm = torch.norm(curr_effective_item - prev_effective_item, p="fro")
+
+        metrics = {
+            "delta_A_F": delta_A_norm.item(),
+            "delta_B_F": delta_B_norm.item(),
+            "norm_delta_A": norm_delta_A.item(),
+            "norm_delta_B": norm_delta_B.item(),
+            "cos_delta_A": cos_delta_A.item(),
+            "cos_delta_B": cos_delta_B.item(),
+            "effective_item_update_F": effective_item_update_norm.item(),
+        }
+
+        return metrics, curr_A, curr_B, delta_A.detach().clone(), delta_B.detach().clone()
+
+    def fit(self,):
+        fit_start = time.perf_counter()
         self.server.count_parameters()
 
         if not self.compressed:
             pre_start = time.perf_counter()
-
             item_feature = self.dataload.get_item_feature()
-
             for turn in range(self.pre_epoch):
                 loss = self.g_model.train_step(item_feature)
-
             latent = self.g_model.get_latent(item_feature)
-
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
-
             logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
+
+        prev_A, prev_B = self._get_lora_A_B()
+        prev_delta_A = None
+        prev_delta_B = None
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
@@ -547,11 +489,7 @@ class FedNCF_Lora_FixedA:
             local_train_time = 0.0
             client_train_times = []  # ADDED
 
-            select_users = self.server.select_clients(
-                self.user_num,
-                self.clients_num_per_turn
-            )
-
+            select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
             client_model = []
             client_local_data_num = []
             losses = []
@@ -561,16 +499,9 @@ class FedNCF_Lora_FixedA:
                 self.client.load_model(self.server.distribute_model(user))
 
                 t0 = time.perf_counter()
+                loss = self.client.local_train(user, self.local_epoch, self.dataload, turn < 20, self.compressed)
+                dt = time.perf_counter() - t0  # ADDED
 
-                loss = self.client.local_train(
-                    user,
-                    self.local_epoch,
-                    self.dataload,
-                    turn < 20,
-                    self.compressed
-                )
-
-                dt = time.perf_counter() - t0
                 local_train_time += dt
                 client_train_times.append(dt)  # ADDED
 
@@ -579,23 +510,36 @@ class FedNCF_Lora_FixedA:
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
+            self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
+            agg_time = time.perf_counter() - agg_start
 
-            self.server.aggregation(
-                select_users,
-                client_model,
-                client_local_data_num,
-                losses,
-                self.cdp,
-                self.ldp
+            ab_metrics, curr_A, curr_B, curr_delta_A, curr_delta_B = self._compute_ab_convergence_metrics(
+                prev_A=prev_A,
+                prev_B=prev_B,
+                prev_delta_A=prev_delta_A,
+                prev_delta_B=prev_delta_B,
             )
 
-            agg_time = time.perf_counter() - agg_start
+            if (turn + 1) % 10 == 0:
+                logging.info(
+                    "[AB-Convergence] "
+                    f"turn={turn} "
+                    f"delta_A_F={ab_metrics['delta_A_F']:.8f} "
+                    f"delta_B_F={ab_metrics['delta_B_F']:.8f} "
+                    f"norm_delta_A={ab_metrics['norm_delta_A']:.8f} "
+                    f"norm_delta_B={ab_metrics['norm_delta_B']:.8f} "
+                    f"cos_delta_A={ab_metrics['cos_delta_A']:.8f} "
+                    f"cos_delta_B={ab_metrics['cos_delta_B']:.8f} "
+                    f"effective_item_update_F={ab_metrics['effective_item_update_F']:.8f}"
+                )
+
+            prev_A, prev_B = curr_A, curr_B
+            prev_delta_A, prev_delta_B = curr_delta_A, curr_delta_B
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
             round_time = time.perf_counter() - round_start
-
             if len(client_train_times) > 0:
                 avg_client_train_time = local_train_time / len(client_train_times)
                 max_client_train_time = max(client_train_times)
@@ -627,20 +571,13 @@ class FedNCF_Lora_FixedA:
                     f"min={min_client_train_time:.6f}s "
                     f"median={median_client_train_time:.6f}s"
                 )
-
                 eval_start = time.perf_counter()
-
                 self.server.evaluate(self.dataload, range(self.user_num))
-
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
 
         logging.info("********* Final Test *********")
-
         final_eval_start = time.perf_counter()
-
         results = self.server.evaluate(self.dataload, range(self.user_num))
-
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
         logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
-
         return results

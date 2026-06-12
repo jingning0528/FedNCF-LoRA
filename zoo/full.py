@@ -54,7 +54,6 @@ class model(BaseModel):
                                   embedding_regularizer=embedding_regularizer, 
                                   net_regularizer=net_regularizer,
                                   metrics=metrics)
-        self.metrics = metrics  # <-- add this line (compatibility)
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
         self.embedding_item = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
         self.mlp = MLP_Block(input_dim = embedding_dim * 2,
@@ -152,18 +151,8 @@ class Client(ClientBase):
 
 class Server(ServerBase):
     model:model
-    def __init__(self, model, server_optimizer="ema", beta=0.9, eta_s=1.0):
+    def __init__(self, model, ):
         super().__init__(model)
-        self.server_optimizer = str(server_optimizer).lower()  # none | ema | heavyball
-        self.beta = float(beta)
-        self.eta_s = float(eta_s)
-
-        # momentum buffer for item embedding matrix only
-        self.v_item = torch.zeros_like(self.model.embedding_item.weight)
-
-        logging.info(
-            f"[FedNCF Full Momentum] method={self.server_optimizer}, beta={self.beta}, eta_s={self.eta_s}"
-        )
 
     def count_parameters(self):
         # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
@@ -190,58 +179,17 @@ class Server(ServerBase):
         self.model.eval()
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
-
         for name in base_model_dict.keys():
             if "embedding_user" in name:
-                for local_model, user in zip(model_list, user_list):
-                    base_model_dict[name].data[user] = local_model[name].data[user]
-
-            elif name == "embedding_item.weight":
-                # FedAvg target
-                item_bar = sum([m[name] * n for m, n in zip(model_list, num_list)]) / data_num
-                item_old = base_model_dict[name]
-                delta = item_bar - item_old
-
-                if self.server_optimizer == "none":
-                    item_new = item_bar
-                elif self.server_optimizer == "heavyball":
-                    # v_t = beta*v_{t-1} + delta
-                    # w_t = w_{t-1} + eta_s*v_t
-                    self.v_item = self.beta * self.v_item.to(item_bar.device) + delta
-                    item_new = item_old + self.eta_s * self.v_item
-                else:
-                    # ema
-                    # v_t = beta*v_{t-1} + (1-beta)*delta
-                    # w_t = w_{t-1} + eta_s*v_t
-                    self.v_item = self.beta * self.v_item.to(item_bar.device) + (1.0 - self.beta) * delta
-                    item_new = item_old + self.eta_s * self.v_item
-
-                base_model_dict[name] = item_new
-
-                if cdp is not None and cdp > 0.:
-                    base_model_dict[name] += torch.normal(
-                        0, cdp, size=base_model_dict[name].size()
-                    ).to(self.model.device)
-                elif ldp is not None and ldp > 0.:
-                    noise_list = [
-                        torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device)
-                        for _ in range(len(user_list))
-                    ]
-                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
-
+                for model, user in zip(model_list, user_list):
+                    base_model_dict[name].data[user] = model[name].data[user]
             else:
-                base_model_dict[name] = sum([m[name] * n for m, n in zip(model_list, num_list)]) / data_num
+                base_model_dict[name] = sum([model[name] * num for model, num in zip(model_list, num_list)]) / data_num
                 if cdp is not None and cdp > 0.:
-                    base_model_dict[name] += torch.normal(
-                        0, cdp, size=base_model_dict[name].size()
-                    ).to(self.model.device)
+                    base_model_dict[name] += torch.normal(0, cdp, size=base_model_dict[name].size()).to(self.model.device)
                 elif ldp is not None and ldp > 0.:
-                    noise_list = [
-                        torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device)
-                        for _ in range(len(user_list))
-                    ]
+                    noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device) for _ in range(len(user_list))]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
-
         self.model.load_weights(copy.deepcopy(base_model_dict))
         logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
 
@@ -258,14 +206,11 @@ class Server(ServerBase):
         y_pred = np.array(y_pred, np.float64)
         y_true = np.array(y_true, np.float64)
         group_id = np.array(group_id) if len(group_id) > 0 else None
-
-        eval_metrics = getattr(self.model, "metrics", getattr(self.model, "metrcis", None))
-        val_logs = self.model.evaluate_metrics(y_true, y_pred, eval_metrics, group_id)
-
+        val_logs = self.model.evaluate_metrics(y_true, y_pred, self.model.metrcis, group_id)
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-class FedNCF_Full_Momentum:
+class Full:
     def __init__(self, 
                  dataload:BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -306,14 +251,7 @@ class FedNCF_Full_Momentum:
             metrics=metrics,
         )
         server_model.reset_parameters()
-
-        self.server = Server(
-            server_model,
-            server_optimizer=kwargs.get("server_optimizer", "ema"),
-            beta=kwargs.get("beta", 0.9),
-            eta_s=kwargs.get("eta_s", 1.0),
-        )
-
+        self.server = Server(server_model)
         self.client = Client(client_id=0, model=model(
             user_num=user_num,
             item_num=item_num,
@@ -331,11 +269,6 @@ class FedNCF_Full_Momentum:
             loss_fn=loss_fn,
             metrics=metrics,
         ), task=task.lower(), fedop=optimizer.lower()) 
-
-        # safe defaults to avoid KeyError
-        kwargs.setdefault("g_hidden_units", [512, 256, 128])
-        kwargs.setdefault("g_hidden_activations", hidden_activations)
-
         self.g_model = AE(hidden_units = kwargs["g_hidden_units"],
                 hidden_activations = kwargs["g_hidden_activations"],
                 embedding_dim = kwargs["sen_embedding_dim"], 
@@ -420,7 +353,6 @@ class FedNCF_Full_Momentum:
                 f"round_time={round_time:.4f}s"
             )
 
-            # ---- evaluate every 10 rounds ----
             if (turn + 1) % 10 == 0:
                 logging.info("********* Eval @ Turn {} *********".format(turn))
                 logging.info(
@@ -440,5 +372,3 @@ class FedNCF_Full_Momentum:
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
         logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
         return results
-
-

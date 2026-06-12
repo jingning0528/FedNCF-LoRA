@@ -409,7 +409,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_FixedB:
+class Analyze_Lora_FixedB:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -502,6 +502,81 @@ class FedNCF_Lora_FixedB:
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
+        # ADDED: A/B tracking buffers
+        self.prev_track_A = None
+        self.prev_track_B = None
+        self.prev_track_delta_A = None
+        self.prev_track_delta_B = None
+        self.track_eps = 1e-12
+
+    # ADDED: helpers for A/B convergence
+    def _get_A_B_for_tracking(self):
+        A = self.server.model.embedding_item.emb.weight.detach().clone()
+        B = self.server.model.embedding_item.linear.weight.detach().clone()
+        return A, B
+
+    def _safe_fro_norm(self, x):
+        return torch.norm(x, p="fro")
+
+    def _safe_cosine(self, x, y):
+        x_flat = x.reshape(-1)
+        y_flat = y.reshape(-1)
+        denom = torch.norm(x_flat) * torch.norm(y_flat)
+        if denom.item() < self.track_eps:
+            return float("nan")
+        return (torch.dot(x_flat, y_flat) / denom).item()
+
+    def _log_AB_convergence_metrics(self, turn):
+        A_now, B_now = self._get_A_B_for_tracking()
+
+        if self.prev_track_A is None or self.prev_track_B is None:
+            self.prev_track_A = A_now
+            self.prev_track_B = B_now
+            logging.info(
+                f"[AB_Track] turn={turn} initialized tracking baseline. "
+                f"A_norm={self._safe_fro_norm(A_now).item():.8f}, "
+                f"B_norm={self._safe_fro_norm(B_now).item():.8f}"
+            )
+            return
+
+        delta_A = A_now - self.prev_track_A
+        delta_B = B_now - self.prev_track_B
+
+        delta_A_norm = self._safe_fro_norm(delta_A).item()
+        delta_B_norm = self._safe_fro_norm(delta_B).item()
+
+        A_prev_norm = self._safe_fro_norm(self.prev_track_A).item()
+        B_prev_norm = self._safe_fro_norm(self.prev_track_B).item()
+
+        norm_delta_A = delta_A_norm / (A_prev_norm + self.track_eps)
+        norm_delta_B = delta_B_norm / (B_prev_norm + self.track_eps)
+
+        cos_delta_A = float("nan") if self.prev_track_delta_A is None else self._safe_cosine(delta_A, self.prev_track_delta_A)
+        cos_delta_B = float("nan") if self.prev_track_delta_B is None else self._safe_cosine(delta_B, self.prev_track_delta_B)
+
+        # effective low-rank embedding change: E = A @ B^T
+        E_now = torch.matmul(A_now, B_now.t())
+        E_prev = torch.matmul(self.prev_track_A, self.prev_track_B.t())
+        effective_embedding_delta_norm = self._safe_fro_norm(E_now - E_prev).item()
+
+        logging.info(
+            f"[AB_Track] turn={turn} "
+            f"delta_A_F={delta_A_norm:.8f} "
+            f"delta_B_F={delta_B_norm:.8f} "
+            f"norm_delta_A={norm_delta_A:.8f} "
+            f"norm_delta_B={norm_delta_B:.8f} "
+            f"cos_delta_A_prev={cos_delta_A:.8f} "
+            f"cos_delta_B_prev={cos_delta_B:.8f} "
+            f"effective_embedding_delta_F={effective_embedding_delta_norm:.8f} "
+            f"A_F={self._safe_fro_norm(A_now).item():.8f} "
+            f"B_F={self._safe_fro_norm(B_now).item():.8f}"
+        )
+
+        self.prev_track_A = A_now
+        self.prev_track_B = B_now
+        self.prev_track_delta_A = delta_A
+        self.prev_track_delta_B = delta_B
+
     def fit(self):
         fit_start = time.perf_counter()
 
@@ -509,18 +584,17 @@ class FedNCF_Lora_FixedB:
 
         if not self.compressed:
             pre_start = time.perf_counter()
-
             item_feature = self.dataload.get_item_feature()
 
             for turn in range(self.pre_epoch):
                 loss = self.g_model.train_step(item_feature)
 
             latent = self.g_model.get_latent(item_feature)
-
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
-
             logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
+
+        self._log_AB_convergence_metrics(turn=-1)
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
@@ -529,10 +603,7 @@ class FedNCF_Lora_FixedB:
             local_train_time = 0.0
             client_train_times = []  # ADDED
 
-            select_users = self.server.select_clients(
-                self.user_num,
-                self.clients_num_per_turn
-            )
+            select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
 
             client_model = []
             client_local_data_num = []
@@ -543,16 +614,9 @@ class FedNCF_Lora_FixedB:
                 self.client.load_model(self.server.distribute_model(user))
 
                 t0 = time.perf_counter()
-
-                loss = self.client.local_train(
-                    user,
-                    self.local_epoch,
-                    self.dataload,
-                    turn < 20,
-                    self.compressed
-                )
-
+                loss = self.client.local_train(user, self.local_epoch, self.dataload, turn < 20, self.compressed)
                 dt = time.perf_counter() - t0  # ADDED
+
                 local_train_time += dt
                 client_train_times.append(dt)  # ADDED
 
@@ -561,16 +625,7 @@ class FedNCF_Lora_FixedB:
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
-
-            self.server.aggregation(
-                select_users,
-                client_model,
-                client_local_data_num,
-                losses,
-                self.cdp,
-                self.ldp
-            )
-
+            self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
             agg_time = time.perf_counter() - agg_start
 
             if torch.cuda.is_available():
@@ -601,6 +656,7 @@ class FedNCF_Lora_FixedB:
             )
 
             if (turn + 1) % 10 == 0:
+                self._log_AB_convergence_metrics(turn=turn)
                 logging.info("********* Eval @ Turn {} *********".format(turn))
                 logging.info(
                     f"[EvalRoundClientTime] turn={turn} "
@@ -615,11 +671,8 @@ class FedNCF_Lora_FixedB:
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
 
         logging.info("********* Final Test *********")
-
         final_eval_start = time.perf_counter()
         results = self.server.evaluate(self.dataload, range(self.user_num))
-
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
         logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
-
         return results

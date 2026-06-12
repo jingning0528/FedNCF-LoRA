@@ -1,9 +1,9 @@
 """
-Fixed B LoRA version.
-Minimum changes:
-- Freeze B = embedding_item.linear
-- Do not upload B
-- Do not aggregate B
+Basic LoRA variant: Fixed A + Momentum on B only.
+After warmup:
+- A = embedding_item.emb is fixed/frozen and kept unchanged on the server
+- B = embedding_item.linear is trainable locally and uses server momentum aggregation
+- embedding_p is frozen after warmup and used as the base item embedding
 """
 
 from collections import OrderedDict
@@ -145,9 +145,9 @@ class model(BaseModel):
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
-        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze LoRA B
-        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: keep LoRA A trainable
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: freeze base embedding_p after warmup
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: fixed A, do not train after warmup
+        self.embedding_item.linear.weight.requires_grad_(True)  # CHANGED: B trainable
 
         self.optimizer.zero_grad()
 
@@ -175,9 +175,9 @@ class model(BaseModel):
     def train_step_triple_c(self, users, pos, neg, global_model=None):
         self.train()
 
-        self.embedding_p.weight.requires_grad_(False)  # CHANGED: correctly freeze base embedding_p
-        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: fixed B, freeze LoRA B
-        self.embedding_item.emb.weight.requires_grad_(True)  # CHANGED: keep LoRA A trainable
+        self.embedding_p.weight.requires_grad_(False)  # CHANGED: freeze base embedding_p
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: fixed A, do not train after warmup
+        self.embedding_item.linear.weight.requires_grad_(True)  # CHANGED: B trainable
 
         self.optimizer.zero_grad()
 
@@ -206,8 +206,8 @@ class model(BaseModel):
         self.train()
 
         self.embedding_p.weight.requires_grad_(True)  # CHANGED: correctly train base embedding_p during warmup
-        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: keep B frozen during warmup
-        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: keep A frozen during warmup
+        self.embedding_item.emb.weight.requires_grad_(False)  # CHANGED: do not train A during warmup
+        self.embedding_item.linear.weight.requires_grad_(False)  # CHANGED: do not train B during warmup
 
         self.optimizer.zero_grad()
 
@@ -247,16 +247,6 @@ class Client(ClientBase):
 
         if self.fedop == "fedprox":
             self.global_model = copy.deepcopy(self.model.state_dict())
-
-    def upload_model(self):
-        # CHANGED: do not upload fixed B = embedding_item.linear
-        full_state = self.model.state_dict()
-        upload_state = {
-            k: v.clone()
-            for k, v in full_state.items()
-            if 'embedding_item.linear' not in k
-        }
-        return upload_state
 
     def local_train(self, user, local_epoch, dataload, pre_train=False, compressed=False):
         self.model.train()
@@ -300,10 +290,16 @@ class Client(ClientBase):
 class Server(ServerBase):
     model: model
 
-    def __init__(self, model):
+    def __init__(self, model, beta=0.9, eta_s=1.0):  # CHANGED: add beta and eta_s
         super().__init__(model)
+
         self.models = {}
         self.global_model = self.model.embedding_p.state_dict()
+
+        self.beta = beta  # CHANGED: momentum coefficient
+        self.eta_s = eta_s  # CHANGED: server learning rate
+
+        self.v_B = torch.zeros_like(self.model.embedding_item.linear.weight)  # CHANGED: momentum buffer for B only
 
     def count_parameters(self):
         self.model.eval()
@@ -333,15 +329,49 @@ class Server(ServerBase):
 
         for name in base_model_dict.keys():
 
-            if "embedding_item.linear" in name:
-                # CHANGED: fixed B, do not aggregate B from clients
-                continue
-
-            elif "embedding_user" in name:
+            if "embedding_user" in name:
                 for model, user in zip(model_list, user_list):
                     base_model_dict[name].data[user] = model[name].data[user]
 
+            elif "embedding_item.emb" in name:
+                # CHANGED: fixed A
+                # A is frozen locally, so it should remain the same on the server.
+                # We intentionally do not FedAvg or momentum-aggregate A.
+                base_model_dict[name] = base_model_dict[name]
+
+            elif "embedding_item.linear.weight" in name:
+                # CHANGED: momentum aggregation only for B = embedding_item.linear.weight
+                B_bar = sum([
+                    model[name] * num
+                    for model, num in zip(model_list, num_list)
+                ]) / data_num
+
+                delta_B = B_bar - base_model_dict[name]
+
+                self.v_B = self.beta * self.v_B.to(B_bar.device) + delta_B
+
+                base_model_dict[name] = base_model_dict[name] + self.eta_s * self.v_B
+
+                if cdp is not None and cdp > 0.:
+                    base_model_dict[name] += torch.normal(
+                        0,
+                        cdp,
+                        size=base_model_dict[name].size()
+                    ).to(self.model.device)
+
+                elif ldp is not None and ldp > 0.:
+                    noise_list = [
+                        torch.normal(
+                            0,
+                            ldp,
+                            size=base_model_dict[name].size()
+                        ).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
+                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
+
             else:
+                # CHANGED: MLP, embedding_p, and other global parameters use normal FedAvg
                 base_model_dict[name] = sum([
                     model[name] * num
                     for model, num in zip(model_list, num_list)
@@ -409,7 +439,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class FedNCF_Lora_FixedB_Analyze:
+class LoRA_MomB_FixedA:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -424,7 +454,7 @@ class FedNCF_Lora_FixedB_Analyze:
                  latent_dim,
                  device, 
                  embedding_regularizer, 
-                 net_regularizer, 
+                 net_regularizer,
                  learning_rate,
                  optimizer, 
                  loss_fn,
@@ -452,7 +482,11 @@ class FedNCF_Lora_FixedB_Analyze:
 
         server_model.reset_parameters()
 
-        self.server = Server(server_model)
+        self.server = Server(
+            server_model,
+            beta=float(kwargs.get("beta", 0.9)),  # CHANGED: read beta from YAML
+            eta_s=float(kwargs.get("eta_s", 1.0))  # CHANGED: read eta_s from YAML
+        )
 
         self.client = Client(
             client_id=0,
@@ -502,81 +536,6 @@ class FedNCF_Lora_FixedB_Analyze:
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
-        # ADDED: A/B tracking buffers
-        self.prev_track_A = None
-        self.prev_track_B = None
-        self.prev_track_delta_A = None
-        self.prev_track_delta_B = None
-        self.track_eps = 1e-12
-
-    # ADDED: helpers for A/B convergence
-    def _get_A_B_for_tracking(self):
-        A = self.server.model.embedding_item.emb.weight.detach().clone()
-        B = self.server.model.embedding_item.linear.weight.detach().clone()
-        return A, B
-
-    def _safe_fro_norm(self, x):
-        return torch.norm(x, p="fro")
-
-    def _safe_cosine(self, x, y):
-        x_flat = x.reshape(-1)
-        y_flat = y.reshape(-1)
-        denom = torch.norm(x_flat) * torch.norm(y_flat)
-        if denom.item() < self.track_eps:
-            return float("nan")
-        return (torch.dot(x_flat, y_flat) / denom).item()
-
-    def _log_AB_convergence_metrics(self, turn):
-        A_now, B_now = self._get_A_B_for_tracking()
-
-        if self.prev_track_A is None or self.prev_track_B is None:
-            self.prev_track_A = A_now
-            self.prev_track_B = B_now
-            logging.info(
-                f"[AB_Track] turn={turn} initialized tracking baseline. "
-                f"A_norm={self._safe_fro_norm(A_now).item():.8f}, "
-                f"B_norm={self._safe_fro_norm(B_now).item():.8f}"
-            )
-            return
-
-        delta_A = A_now - self.prev_track_A
-        delta_B = B_now - self.prev_track_B
-
-        delta_A_norm = self._safe_fro_norm(delta_A).item()
-        delta_B_norm = self._safe_fro_norm(delta_B).item()
-
-        A_prev_norm = self._safe_fro_norm(self.prev_track_A).item()
-        B_prev_norm = self._safe_fro_norm(self.prev_track_B).item()
-
-        norm_delta_A = delta_A_norm / (A_prev_norm + self.track_eps)
-        norm_delta_B = delta_B_norm / (B_prev_norm + self.track_eps)
-
-        cos_delta_A = float("nan") if self.prev_track_delta_A is None else self._safe_cosine(delta_A, self.prev_track_delta_A)
-        cos_delta_B = float("nan") if self.prev_track_delta_B is None else self._safe_cosine(delta_B, self.prev_track_delta_B)
-
-        # effective low-rank embedding change: E = A @ B^T
-        E_now = torch.matmul(A_now, B_now.t())
-        E_prev = torch.matmul(self.prev_track_A, self.prev_track_B.t())
-        effective_embedding_delta_norm = self._safe_fro_norm(E_now - E_prev).item()
-
-        logging.info(
-            f"[AB_Track] turn={turn} "
-            f"delta_A_F={delta_A_norm:.8f} "
-            f"delta_B_F={delta_B_norm:.8f} "
-            f"norm_delta_A={norm_delta_A:.8f} "
-            f"norm_delta_B={norm_delta_B:.8f} "
-            f"cos_delta_A_prev={cos_delta_A:.8f} "
-            f"cos_delta_B_prev={cos_delta_B:.8f} "
-            f"effective_embedding_delta_F={effective_embedding_delta_norm:.8f} "
-            f"A_F={self._safe_fro_norm(A_now).item():.8f} "
-            f"B_F={self._safe_fro_norm(B_now).item():.8f}"
-        )
-
-        self.prev_track_A = A_now
-        self.prev_track_B = B_now
-        self.prev_track_delta_A = delta_A
-        self.prev_track_delta_B = delta_B
-
     def fit(self):
         fit_start = time.perf_counter()
 
@@ -584,26 +543,30 @@ class FedNCF_Lora_FixedB_Analyze:
 
         if not self.compressed:
             pre_start = time.perf_counter()
+
             item_feature = self.dataload.get_item_feature()
 
             for turn in range(self.pre_epoch):
                 loss = self.g_model.train_step(item_feature)
 
             latent = self.g_model.get_latent(item_feature)
+
             self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
             self.server.global_model = self.server.model.embedding_p.state_dict()
-            logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
 
-        self._log_AB_convergence_metrics(turn=-1)
+            logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
 
             round_start = time.perf_counter()
             local_train_time = 0.0
-            client_train_times = []  # ADDED
+            client_train_times = []
 
-            select_users = self.server.select_clients(self.user_num, self.clients_num_per_turn)
+            select_users = self.server.select_clients(
+                self.user_num,
+                self.clients_num_per_turn
+            )
 
             client_model = []
             client_local_data_num = []
@@ -614,18 +577,34 @@ class FedNCF_Lora_FixedB_Analyze:
                 self.client.load_model(self.server.distribute_model(user))
 
                 t0 = time.perf_counter()
-                loss = self.client.local_train(user, self.local_epoch, self.dataload, turn < 20, self.compressed)
-                dt = time.perf_counter() - t0  # ADDED
 
+                loss = self.client.local_train(
+                    user,
+                    self.local_epoch,
+                    self.dataload,
+                    turn < 20,
+                    self.compressed
+                )
+
+                dt = time.perf_counter() - t0
                 local_train_time += dt
-                client_train_times.append(dt)  # ADDED
+                client_train_times.append(dt)
 
                 losses.append(loss)
                 client_model.append(self.client.upload_model())
                 client_local_data_num.append(self.client.local_data_num())
 
             agg_start = time.perf_counter()
-            self.server.aggregation(select_users, client_model, client_local_data_num, losses, self.cdp, self.ldp)
+
+            self.server.aggregation(
+                select_users,
+                client_model,
+                client_local_data_num,
+                losses,
+                self.cdp,
+                self.ldp
+            )
+
             agg_time = time.perf_counter() - agg_start
 
             if torch.cuda.is_available():
@@ -656,7 +635,6 @@ class FedNCF_Lora_FixedB_Analyze:
             )
 
             if (turn + 1) % 10 == 0:
-                self._log_AB_convergence_metrics(turn=turn)
                 logging.info("********* Eval @ Turn {} *********".format(turn))
                 logging.info(
                     f"[EvalRoundClientTime] turn={turn} "
@@ -671,8 +649,11 @@ class FedNCF_Lora_FixedB_Analyze:
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
 
         logging.info("********* Final Test *********")
+
         final_eval_start = time.perf_counter()
         results = self.server.evaluate(self.dataload, range(self.user_num))
+
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
         logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
+
         return results

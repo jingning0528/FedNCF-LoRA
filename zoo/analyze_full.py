@@ -55,10 +55,7 @@ class model(BaseModel):
                                   net_regularizer=net_regularizer,
                                   metrics=metrics)
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
-        self.embedding_item = nn.Sequential(OrderedDict([('emb', nn.Embedding(item_num, latent_dim)), 
-                                                      ('linear', nn.Linear(latent_dim, embedding_dim, bias=False)),
-                                                      ]))
-        self.embedding_p = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
+        self.embedding_item = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
         self.mlp = MLP_Block(input_dim = embedding_dim * 2,
                              output_dim=1,
                              hidden_units=hidden_units,
@@ -74,39 +71,11 @@ class model(BaseModel):
         self.model_to_device()
 
     def __init_weight(self, ):
-        nn.init.normal_(self.embedding_item.emb.weight, std=0.1)
-        nn.init.zeros_(self.embedding_item.linear.weight)
         nn.init.normal_(self.embedding_user.weight, std=0.1)
-        nn.init.normal_(self.embedding_p.weight, std=0.1)
-
-    def emb_item(self, item_id):
-        return self.embedding_p(item_id) + self.embedding_item(item_id)
-
-    def emb_item_c(self, item_id):
-        return self.embedding_item(item_id)
+        nn.init.normal_(self.embedding_item.weight, std=0.1)
 
     def forward(self, user_id, item_id):
-        output = self.mlp(torch.cat([self.embedding_user(user_id),self.emb_item(item_id)], -1))
-
-        if self.task != "triple":
-            output = self.output_activation(output)
-            if self.task == "regression":
-                output = output * 4.0 + 1.0
-            return output
-        return output
-
-    def forward_c(self, user_id, item_id):
-        output = self.mlp(torch.cat([self.embedding_user(user_id),self.emb_item_c(item_id)], -1))
-
-        if self.task != "triple":
-            output = self.output_activation(output)
-            if self.task == "regression":
-                output = output * 4.0 + 1.0
-            return output
-        return output
-    
-    def forward_pre(self, user_id, item_id):
-        output = self.mlp(torch.cat([self.embedding_user(user_id),self.embedding_p(item_id)], -1))
+        output = self.mlp(torch.cat([self.embedding_user(user_id),self.embedding_item(item_id)], -1))
 
         if self.task != "triple":
             output = self.output_activation(output)
@@ -129,46 +98,11 @@ class model(BaseModel):
     
     def train_step_triple(self, users, pos, neg, global_model=None):
         self.train()
-        self.embedding_p.requires_grad_ = False
         self.optimizer.zero_grad()
         pred_pos = self.forward(users, pos)
         pred_neg = self.forward(users, neg)
         if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item(pos), self.emb_item(neg),)
-        else:
-            loss = self.loss_fn(pred_pos, pred_neg, )
-        loss.backward()
-        if self.fedop == "fedprox":
-            self.optimizer.step(global_model)
-        else:
-            self.optimizer.step()
-        return loss
-
-    def train_step_triple_c(self, users, pos, neg, global_model=None):
-        self.train()
-        self.embedding_p.requires_grad_ = False
-        self.optimizer.zero_grad()
-        pred_pos = self.forward_c(users, pos)
-        pred_neg = self.forward_c(users, neg)
-        if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.emb_item_c(pos), self.emb_item_c(neg),)
-        else:
-            loss = self.loss_fn(pred_pos, pred_neg, )
-        loss.backward()
-        if self.fedop == "fedprox":
-            self.optimizer.step(global_model)
-        else:
-            self.optimizer.step()
-        return loss
-    
-    def train_step_triple_pre(self, users, pos, neg, global_model=None):
-        self.train()
-        self.embedding_p.requires_grad_ = True
-        self.optimizer.zero_grad()
-        pred_pos = self.forward_pre(users, pos)
-        pred_neg = self.forward_pre(users, neg)
-        if len(users) > 0:
-            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.embedding_p(pos), self.embedding_p(neg),)
+            loss = self.loss_fn(pred_pos, pred_neg, ) + self.add_regularization_triple(self.embedding_user.weight[users[0]], self.embedding_item(pos), self.embedding_item(neg),)
         else:
             loss = self.loss_fn(pred_pos, pred_neg, )
         loss.backward()
@@ -198,20 +132,9 @@ class Client(ClientBase):
             self.__local_data_num = users.size(0)
             for _ in range(local_epoch):
                 if self.fedop == "fedprox":
-                    if compressed:
-                        loss = self.model.train_step_triple_c(users, pos, neg, self.global_model)
-                    elif pre_train:
-                        loss = self.model.train_step_triple_pre(users, pos, neg, self.global_model)
-                    else:
-                        loss = self.model.train_step_triple(users, pos, neg, self.global_model)
-
+                    loss = self.model.train_step_triple(users, pos, neg, self.global_model)
                 else:
-                    if compressed:
-                        loss = self.model.train_step_triple_c(users, pos, neg)
-                    elif pre_train:
-                        loss = self.model.train_step_triple_pre(users, pos, neg)
-                    else:
-                        loss = self.model.train_step_triple(users, pos, neg)
+                    loss = self.model.train_step_triple(users, pos, neg)
         else:
             users, items, labels = dataload.get_traindata(user)
             self.__local_data_num = labels.size(0)
@@ -230,8 +153,6 @@ class Server(ServerBase):
     model:model
     def __init__(self, model, ):
         super().__init__(model)
-        self.models = {}
-        self.global_model = self.model.embedding_p.state_dict()
 
     def count_parameters(self):
         # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
@@ -272,13 +193,6 @@ class Server(ServerBase):
         self.model.load_weights(copy.deepcopy(base_model_dict))
         logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
 
-    def get_client_model(self, user):
-        if user in self.models:
-            self.model.embedding_p.load_state_dict(self.models[user])
-        else:
-            self.model.embedding_p.load_state_dict(self.global_model)
-        self.model.to(self.model.device)
-
     def evaluate(self, dataload, user_list):
         self.model.eval()
         y_pred = []
@@ -296,7 +210,7 @@ class Server(ServerBase):
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-class FedNCF_Lora:
+class Analyze_Full():
     def __init__(self, 
                  dataload:BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -377,19 +291,76 @@ class FedNCF_Lora:
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
+        # ---- item embedding tracking buffers ----
+        self.prev_track_item = None
+        self.init_track_item = None
+        self.prev_track_delta_item = None
+        self.track_eps = 1e-12
+
+    # ---- tracking helpers (full item embedding) ----
+    def _get_item_for_tracking(self):
+        return self.server.model.embedding_item.weight.detach().clone()
+
+    def _safe_fro_norm(self, x):
+        return torch.norm(x, p="fro")
+
+    def _safe_cosine(self, x, y):
+        x_flat = x.reshape(-1)
+        y_flat = y.reshape(-1)
+        denom = torch.norm(x_flat) * torch.norm(y_flat)
+        if denom.item() < self.track_eps:
+            return float("nan")
+        return (torch.dot(x_flat, y_flat) / denom).item()
+
+    def _log_item_convergence_metrics(self, turn):
+        item_now = self._get_item_for_tracking()
+
+        # initialize baseline
+        if self.prev_track_item is None:
+            self.prev_track_item = item_now
+            self.init_track_item = item_now
+            logging.info(
+                f"[Item_Track] turn={turn} initialized tracking baseline. "
+                f"item_F={self._safe_fro_norm(item_now).item():.8f}"
+            )
+            return
+
+        delta_item = item_now - self.prev_track_item
+
+        delta_item_F = self._safe_fro_norm(delta_item).item()
+        prev_item_F = self._safe_fro_norm(self.prev_track_item).item()
+        curr_item_F = self._safe_fro_norm(item_now).item()
+        init_item_F = self._safe_fro_norm(self.init_track_item).item()
+
+        # normalized matrix magnitude of update (relative change wrt previous magnitude)
+        norm_delta_item = delta_item_F / (prev_item_F + self.track_eps)
+
+        # normalized matrix magnitude of current matrix (wrt initial magnitude)
+        norm_item_vs_init = curr_item_F / (init_item_F + self.track_eps)
+
+        if self.prev_track_delta_item is None:
+            cos_delta_prev = float("nan")
+        else:
+            cos_delta_prev = self._safe_cosine(delta_item, self.prev_track_delta_item)
+
+        logging.info(
+            f"[Item_Track] turn={turn} "
+            f"delta_item_F={delta_item_F:.8f} "
+            f"norm_delta_item={norm_delta_item:.8f} "
+            f"cos_delta_prev={cos_delta_prev:.8f} "
+            f"item_F={curr_item_F:.8f} "
+            f"norm_item_vs_init={norm_item_vs_init:.8f}"
+        )
+
+        self.prev_track_item = item_now
+        self.prev_track_delta_item = delta_item
+
     def fit(self,):
         fit_start = time.perf_counter()
         self.server.count_parameters()
 
-        if not self.compressed:
-            pre_start = time.perf_counter()
-            item_feature = self.dataload.get_item_feature()
-            for turn in range(self.pre_epoch):
-                loss = self.g_model.train_step(item_feature)
-            latent = self.g_model.get_latent(item_feature)
-            self.server.model.embedding_p.weight.data = copy.deepcopy(latent.detach())
-            self.server.global_model = self.server.model.embedding_p.state_dict()
-            logging.info(f"[Time] pretrain_time={time.perf_counter() - pre_start:.4f}s")
+        # baseline before FL rounds
+        self._log_item_convergence_metrics(turn=-1)
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
@@ -408,7 +379,7 @@ class FedNCF_Lora:
                 self.client.load_model(self.server.distribute_model(user))
 
                 t0 = time.perf_counter()
-                loss = self.client.local_train(user, self.local_epoch, self.dataload, turn < 20, self.compressed)
+                loss = self.client.local_train(user, self.local_epoch, self.dataload, False, self.compressed)
                 dt = time.perf_counter() - t0
 
                 local_train_time += dt
@@ -448,7 +419,10 @@ class FedNCF_Lora:
                 f"round_time={round_time:.4f}s"
             )
 
+            # ---- track + evaluate every 10 rounds ----
             if (turn + 1) % 10 == 0:
+                self._log_item_convergence_metrics(turn=turn)
+
                 logging.info("********* Eval @ Turn {} *********".format(turn))
                 logging.info(
                     f"[EvalRoundClientTime] turn={turn} "
@@ -457,11 +431,12 @@ class FedNCF_Lora:
                     f"min={min_client_train_time:.6f}s "
                     f"median={median_client_train_time:.6f}s"
                 )
+
                 eval_start = time.perf_counter()
                 self.server.evaluate(self.dataload, range(self.user_num))
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
 
-        logging.info("********* Final Test *********")
+        logging.info("********* Test *********")
         final_eval_start = time.perf_counter()
         results = self.server.evaluate(self.dataload, range(self.user_num))
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")

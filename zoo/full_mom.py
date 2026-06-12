@@ -54,6 +54,7 @@ class model(BaseModel):
                                   embedding_regularizer=embedding_regularizer, 
                                   net_regularizer=net_regularizer,
                                   metrics=metrics)
+        self.metrics = metrics  # <-- add this line (compatibility)
         self.embedding_user = nn.Embedding(num_embeddings=user_num, embedding_dim=embedding_dim)
         self.embedding_item = nn.Embedding(num_embeddings=item_num, embedding_dim=embedding_dim)
         self.mlp = MLP_Block(input_dim = embedding_dim * 2,
@@ -151,8 +152,18 @@ class Client(ClientBase):
 
 class Server(ServerBase):
     model:model
-    def __init__(self, model, ):
+    def __init__(self, model, server_optimizer="ema", beta=0.9, eta_s=1.0):
         super().__init__(model)
+        self.server_optimizer = str(server_optimizer).lower()  # none | ema | heavyball
+        self.beta = float(beta)
+        self.eta_s = float(eta_s)
+
+        # momentum buffer for item embedding matrix only
+        self.v_item = torch.zeros_like(self.model.embedding_item.weight)
+
+        logging.info(
+            f"[FedNCF Full Momentum] method={self.server_optimizer}, beta={self.beta}, eta_s={self.eta_s}"
+        )
 
     def count_parameters(self):
         # flops, params = profile(self.model, inputs=(torch.tensor(0, dtype=torch.int64, device=self.model.device),
@@ -179,17 +190,58 @@ class Server(ServerBase):
         self.model.eval()
         data_num = sum(num_list)
         base_model_dict = copy.deepcopy(self.model.state_dict())
+
         for name in base_model_dict.keys():
             if "embedding_user" in name:
-                for model, user in zip(model_list, user_list):
-                    base_model_dict[name].data[user] = model[name].data[user]
-            else:
-                base_model_dict[name] = sum([model[name] * num for model, num in zip(model_list, num_list)]) / data_num
+                for local_model, user in zip(model_list, user_list):
+                    base_model_dict[name].data[user] = local_model[name].data[user]
+
+            elif name == "embedding_item.weight":
+                # FedAvg target
+                item_bar = sum([m[name] * n for m, n in zip(model_list, num_list)]) / data_num
+                item_old = base_model_dict[name]
+                delta = item_bar - item_old
+
+                if self.server_optimizer == "none":
+                    item_new = item_bar
+                elif self.server_optimizer == "heavyball":
+                    # v_t = beta*v_{t-1} + delta
+                    # w_t = w_{t-1} + eta_s*v_t
+                    self.v_item = self.beta * self.v_item.to(item_bar.device) + delta
+                    item_new = item_old + self.eta_s * self.v_item
+                else:
+                    # ema
+                    # v_t = beta*v_{t-1} + (1-beta)*delta
+                    # w_t = w_{t-1} + eta_s*v_t
+                    self.v_item = self.beta * self.v_item.to(item_bar.device) + (1.0 - self.beta) * delta
+                    item_new = item_old + self.eta_s * self.v_item
+
+                base_model_dict[name] = item_new
+
                 if cdp is not None and cdp > 0.:
-                    base_model_dict[name] += torch.normal(0, cdp, size=base_model_dict[name].size()).to(self.model.device)
+                    base_model_dict[name] += torch.normal(
+                        0, cdp, size=base_model_dict[name].size()
+                    ).to(self.model.device)
                 elif ldp is not None and ldp > 0.:
-                    noise_list = [torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device) for _ in range(len(user_list))]
+                    noise_list = [
+                        torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
                     base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
+
+            else:
+                base_model_dict[name] = sum([m[name] * n for m, n in zip(model_list, num_list)]) / data_num
+                if cdp is not None and cdp > 0.:
+                    base_model_dict[name] += torch.normal(
+                        0, cdp, size=base_model_dict[name].size()
+                    ).to(self.model.device)
+                elif ldp is not None and ldp > 0.:
+                    noise_list = [
+                        torch.normal(0, ldp, size=base_model_dict[name].size()).to(self.model.device)
+                        for _ in range(len(user_list))
+                    ]
+                    base_model_dict[name] += torch.mean(torch.stack(noise_list), dim=0)
+
         self.model.load_weights(copy.deepcopy(base_model_dict))
         logging.info("Clients average loss: {}".format(torch.mean(torch.tensor(loss_list))))
 
@@ -206,11 +258,14 @@ class Server(ServerBase):
         y_pred = np.array(y_pred, np.float64)
         y_true = np.array(y_true, np.float64)
         group_id = np.array(group_id) if len(group_id) > 0 else None
-        val_logs = self.model.evaluate_metrics(y_true, y_pred, self.model.metrcis, group_id)
+
+        eval_metrics = getattr(self.model, "metrics", getattr(self.model, "metrcis", None))
+        val_logs = self.model.evaluate_metrics(y_true, y_pred, eval_metrics, group_id)
+
         logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
         return val_logs
 
-class FedNCF_Full_Analyze():
+class Full_Mom:
     def __init__(self, 
                  dataload:BaseDataLoaderFL,
                  clients_num_per_turn, 
@@ -251,7 +306,14 @@ class FedNCF_Full_Analyze():
             metrics=metrics,
         )
         server_model.reset_parameters()
-        self.server = Server(server_model)
+
+        self.server = Server(
+            server_model,
+            server_optimizer=kwargs.get("server_optimizer", "ema"),
+            beta=kwargs.get("beta", 0.9),
+            eta_s=kwargs.get("eta_s", 1.0),
+        )
+
         self.client = Client(client_id=0, model=model(
             user_num=user_num,
             item_num=item_num,
@@ -269,6 +331,11 @@ class FedNCF_Full_Analyze():
             loss_fn=loss_fn,
             metrics=metrics,
         ), task=task.lower(), fedop=optimizer.lower()) 
+
+        # safe defaults to avoid KeyError
+        kwargs.setdefault("g_hidden_units", [512, 256, 128])
+        kwargs.setdefault("g_hidden_activations", hidden_activations)
+
         self.g_model = AE(hidden_units = kwargs["g_hidden_units"],
                 hidden_activations = kwargs["g_hidden_activations"],
                 embedding_dim = kwargs["sen_embedding_dim"], 
@@ -291,76 +358,9 @@ class FedNCF_Full_Analyze():
         self.cdp = kwargs.get("cdp", None)
         self.ldp = kwargs.get("ldp", None)
 
-        # ---- item embedding tracking buffers ----
-        self.prev_track_item = None
-        self.init_track_item = None
-        self.prev_track_delta_item = None
-        self.track_eps = 1e-12
-
-    # ---- tracking helpers (full item embedding) ----
-    def _get_item_for_tracking(self):
-        return self.server.model.embedding_item.weight.detach().clone()
-
-    def _safe_fro_norm(self, x):
-        return torch.norm(x, p="fro")
-
-    def _safe_cosine(self, x, y):
-        x_flat = x.reshape(-1)
-        y_flat = y.reshape(-1)
-        denom = torch.norm(x_flat) * torch.norm(y_flat)
-        if denom.item() < self.track_eps:
-            return float("nan")
-        return (torch.dot(x_flat, y_flat) / denom).item()
-
-    def _log_item_convergence_metrics(self, turn):
-        item_now = self._get_item_for_tracking()
-
-        # initialize baseline
-        if self.prev_track_item is None:
-            self.prev_track_item = item_now
-            self.init_track_item = item_now
-            logging.info(
-                f"[Item_Track] turn={turn} initialized tracking baseline. "
-                f"item_F={self._safe_fro_norm(item_now).item():.8f}"
-            )
-            return
-
-        delta_item = item_now - self.prev_track_item
-
-        delta_item_F = self._safe_fro_norm(delta_item).item()
-        prev_item_F = self._safe_fro_norm(self.prev_track_item).item()
-        curr_item_F = self._safe_fro_norm(item_now).item()
-        init_item_F = self._safe_fro_norm(self.init_track_item).item()
-
-        # normalized matrix magnitude of update (relative change wrt previous magnitude)
-        norm_delta_item = delta_item_F / (prev_item_F + self.track_eps)
-
-        # normalized matrix magnitude of current matrix (wrt initial magnitude)
-        norm_item_vs_init = curr_item_F / (init_item_F + self.track_eps)
-
-        if self.prev_track_delta_item is None:
-            cos_delta_prev = float("nan")
-        else:
-            cos_delta_prev = self._safe_cosine(delta_item, self.prev_track_delta_item)
-
-        logging.info(
-            f"[Item_Track] turn={turn} "
-            f"delta_item_F={delta_item_F:.8f} "
-            f"norm_delta_item={norm_delta_item:.8f} "
-            f"cos_delta_prev={cos_delta_prev:.8f} "
-            f"item_F={curr_item_F:.8f} "
-            f"norm_item_vs_init={norm_item_vs_init:.8f}"
-        )
-
-        self.prev_track_item = item_now
-        self.prev_track_delta_item = delta_item
-
     def fit(self,):
         fit_start = time.perf_counter()
         self.server.count_parameters()
-
-        # baseline before FL rounds
-        self._log_item_convergence_metrics(turn=-1)
 
         for turn in range(self.train_turn):
             logging.info("********* Train Turn {} *********".format(turn))
@@ -397,6 +397,7 @@ class FedNCF_Full_Analyze():
                 torch.cuda.empty_cache()
 
             round_time = time.perf_counter() - round_start
+
             if len(client_train_times) > 0:
                 avg_client_train_time = local_train_time / len(client_train_times)
                 max_client_train_time = max(client_train_times)
@@ -419,10 +420,8 @@ class FedNCF_Full_Analyze():
                 f"round_time={round_time:.4f}s"
             )
 
-            # ---- track + evaluate every 10 rounds ----
+            # ---- evaluate every 10 rounds ----
             if (turn + 1) % 10 == 0:
-                self._log_item_convergence_metrics(turn=turn)
-
                 logging.info("********* Eval @ Turn {} *********".format(turn))
                 logging.info(
                     f"[EvalRoundClientTime] turn={turn} "
@@ -431,7 +430,6 @@ class FedNCF_Full_Analyze():
                     f"min={min_client_train_time:.6f}s "
                     f"median={median_client_train_time:.6f}s"
                 )
-
                 eval_start = time.perf_counter()
                 self.server.evaluate(self.dataload, range(self.user_num))
                 logging.info(f"[Time] eval_time={time.perf_counter() - eval_start:.4f}s")
@@ -442,3 +440,5 @@ class FedNCF_Full_Analyze():
         logging.info(f"[Time] final_eval_time={time.perf_counter() - final_eval_start:.4f}s")
         logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
         return results
+
+

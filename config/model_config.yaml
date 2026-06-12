@@ -1,5 +1,13 @@
+# Full
+# LoRA 
+# LoRA_FixedA
+# LoRA_FixedB
+# LoRA_MomA 
+# LoRA_MomB 
+# LoRA_MomB_FixedA
+# LoRA_MomA_FixedB 
 # ************************************ Amazon *******************************************
-FedNCF_amazon_triple_101_software:
+Software:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -26,10 +34,13 @@ FedNCF_amazon_triple_101_software:
     clients_num_per_turn: 180
     ## **Compressed embedding**
     # **LoRA**
-    model: FedNCF_Lora
     latent_dim: 4
+    model: Lora_MomA_FixedB    
+    beta: 0.9           
+    eta_s: 1.0          
+    server_optimizer: heavyball
 
-FedNCF_amazon_triple_101_industrial:
+Industrial:
     seed: 2024
     local_epoch: 2
     metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
@@ -55,10 +66,50 @@ FedNCF_amazon_triple_101_industrial:
     clients_num_per_turn: 530
     ## **Compressed embedding**
     # **LoRA**
-    model: FedNCF_Lora
     latent_dim: 4
+    model: Lora_MomA_FixedB      
+    beta: 0.9           
+    eta_s: 0.5          
+    server_optimizer: heavyball
 
 # ************************************ ML-1M *******************************************
+ML1M:
+    seed: 2024
+    local_epoch: 2
+    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
+    task: 'triple'
+    train_turn: 1000
+    embedding_dim: 32
+    hidden_activations: ReLU
+    hidden_units: [64, 128, 64]
+    g_hidden_units: [512, 256, 128]
+    g_hidden_activations: ReLU
+    output_dim: 1
+    dropout: 0.5
+    only_inter: false
+    embedding_regularizer: 1.e-8
+    net_regularizer: 1.e-8
+    learning_rate: 1.e-3
+    optimizer: adam
+    loss_fn: 'bpr_loss'
+    pre_epoch: 3000
+    ## **Dataset**
+    # **ml1m**
+    dataset_id: ML1M_t5
+    dataloader: MLDataLoaderFL
+    clients_num_per_turn: 604
+    latent_dim: 4 
+    model: Lora_MomA_FixedB_Finetune      
+    beta: 0.9           
+    eta_s: 1.0          
+    server_optimizer: heavyball # options: "adam", "ema_norm" or "heavyball"
+    # eta_s: 0.5
+    # server_adam_beta1: 0.9
+    # server_adam_beta2: 0.99
+    # server_adam_eps: 1.e-8
+
+
+
 FedNCF_ml1m_triple_full_analyze:
     seed: 2024
     model: FedNCF_Full_Analyze
@@ -145,40 +196,6 @@ FedNCF_ml1m_triple_101:
     model: FedNCF_Lora
     latent_dim: 4
 
-FedNCF_ml1m_triple_101_momentumA_fixedB_finetune:
-    seed: 2024
-    local_epoch: 2
-    metrics: ['logloss', 'MRR', 'NDCG(5)', 'HR(5)', 'NDCG(10)', 'HR(10)', 'NDCG(20)', 'HR(20)', 'NDCG(50)', 'HR(50)']
-    task: 'triple'
-    train_turn: 1000
-    embedding_dim: 32
-    hidden_activations: ReLU
-    hidden_units: [64, 128, 64]
-    g_hidden_units: [512, 256, 128]
-    g_hidden_activations: ReLU
-    output_dim: 1
-    dropout: 0.5
-    only_inter: false
-    embedding_regularizer: 1.e-8
-    net_regularizer: 1.e-8
-    learning_rate: 1.e-3
-    optimizer: adam
-    loss_fn: 'bpr_loss'
-    pre_epoch: 3000
-    ## **Dataset**
-    # **ml1m**
-    dataset_id: ML1M_t5
-    dataloader: MLDataLoaderFL
-    clients_num_per_turn: 604
-    model: FedNCF_Lora_MomentumA_FixedB_Finetune
-    latent_dim: 4       # rank r, try 2 for more compression
-    beta: 0.99           # momentum coefficient
-    eta_s: 2.0          # server learning rate
-    server_optimizer: heavyball # options: "adam", "ema_norm" or "heavyball"
-    # eta_s: 0.5
-    server_adam_beta1: 0.9
-    server_adam_beta2: 0.99
-    server_adam_eps: 1.e-8
 
 FedNCF_ml1m_triple_101_momentumA_fixedB:
     seed: 2024

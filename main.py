@@ -21,6 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--expid', type=str, default='DeepFM_test', help='The experiment id to run.')
     parser.add_argument('--gpu', type=int, default=-1, help='The gpu index, -1 for cpu')
     parser.add_argument('--seed', type=int, default=None, help='Override seed from config')
+    parser.add_argument('--model', type=str, default='', help='Override model from config')
     parser.add_argument('--result_file', type=str, default='', help='Output csv file path')
     parser.add_argument('--save_csv', action='store_true', help='Save result summary to csv')
     args = vars(parser.parse_args())
@@ -30,6 +31,8 @@ if __name__ == '__main__':
 
     if args['seed'] is not None:
         params['seed'] = args['seed']
+    if args['model']:
+        params['model'] = args['model']
 
     params['device'] = args['gpu']
     set_logger(params)
