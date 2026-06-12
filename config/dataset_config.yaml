@@ -24,14 +24,14 @@ Amazon_industrial_t5:
   item_num: 5334
 
 Amazon_software_t5:
-  data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/
-  meta_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/
-  model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Software/
-  path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Software
-  # data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/
-  # meta_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/meta_processed/t5/
-  # model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/model/t5/Software/
-  # path: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/graph/Software
+  # data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/
+  # meta_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/
+  # model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Software/
+  # path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Software
+  data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/
+  meta_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/meta_processed/t5/
+  model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/model/t5/Software/
+  path: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/graph/Software
   field: Software
   sen_embedding_dim: 768
   user_num: 1826
