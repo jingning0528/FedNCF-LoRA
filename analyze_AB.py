@@ -72,12 +72,10 @@ AB_CSV_DIR.mkdir(parents=True, exist_ok=True)
 SELECTED_LOG_FILES = [
 
     # ************************************** baseline ********************************
-    # "analyze_1000/FedNCF-LoRA.txt",
+    "analyze_1000/FedNCF-LoRA.txt",
     
-    "analyze_1000/FedNCF-FixedB.txt",
-    "analyze_1000/MofiLoRA.txt",
-
-
+    # "analyze_1000/FedNCF-FixedB.txt",
+    # "analyze_1000/MofiLoRA.txt",
 ]
 
 
@@ -269,18 +267,53 @@ def summarize(ab_df: pd.DataFrame, merged_df: pd.DataFrame | None = None) -> pd.
 # Plot helpers
 # =========================================================
 
+# def line_plot(df: pd.DataFrame, x: str, ys: list[str], title: str, ylabel: str, out_path: Path):
+#     plt.figure(figsize=(5, 5))
+#     for y in ys:
+#         if y in df.columns:
+#             plt.plot(df[x], df[y], marker="o", label=y, linewidth=2.0, markersize=3)
+#     plt.xlabel("round", fontsize=15)
+#     plt.ylabel(ylabel, fontsize=15)
+#     # plt.title(title)
+#     plt.legend(fontsize=15)
+#     plt.grid(True, alpha=0.3)
+#     plt.tight_layout()
+#     plt.savefig(out_path, dpi=300)
+#     plt.close()
+
+
+
 def line_plot(df: pd.DataFrame, x: str, ys: list[str], title: str, ylabel: str, out_path: Path):
-    plt.figure(figsize=(9, 5))
+    plt.figure(figsize=(4.5, 3.5))
+
     for y in ys:
         if y in df.columns:
-            plt.plot(df[x], df[y], marker="o", label=y, linewidth=2.0, markersize=5)
-    plt.xlabel("round", fontsize=15)
-    plt.ylabel(ylabel, fontsize=15)
-    # plt.title(title)
-    plt.legend(fontsize=15)
-    plt.grid(True, alpha=0.3)
+            plt.plot(
+                df[x],
+                df[y],
+                linewidth=2.5,
+                label=y,
+            )
+
+    plt.xlabel("Communication Round", fontsize=16)
+    plt.ylabel(ylabel, fontsize=16)
+
+    plt.tick_params(axis="both", labelsize=14)
+
+    plt.grid(
+        True,
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.5,
+    )
+
+    plt.legend(
+        fontsize=13,
+        frameon=False,
+    )
+
     plt.tight_layout()
-    plt.savefig(out_path, dpi=300)
+    plt.savefig(out_path, bbox_inches="tight")
     plt.close()
 
 

@@ -16,18 +16,43 @@ FIG_DIR = REPO_ROOT / "figures"
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
 
-    # "software/FedNCF-Full.txt",
-    # "software/FedNCF-LoRA.txt",
-    # "software/MoFiLoRA.txt",
+    # "software/Full.txt",
+    # "software/LoRA.txt",
+    # "software/LoRA-FixedB.txt",
+    # "software/MofiLoRA.txt",
+
+    # "industrial/Full.txt",
+    # "industrial/LoRA.txt",
+    # "industrial/LoRA-FixedB.txt",
+    # "industrial/MofiLoRA.txt",
+
+    "baseline_1000/Full.txt",
+    "baseline_1000/LoRA.txt",
+    # "AB_test_1000/LoRA-FixedB.txt",
+    # "baseline_1000/MoFiLoRA.txt",
+
+    # "baseline_1000/Full.txt",
+    # "baseline_1000/LoRA.txt",
+    # "AB_test_1000/LoRA-FixedA.txt",
+    # "AB_test_1000/LoRA-FixedB.txt",
+
+    # "AB_test_1000/LoRA-MomA.txt",
+    # "AB_test_1000/LoRA-MomB.txt",
+    # "AB_test_1000/LoRA-MomB-FixedA.txt",
+    # "AB_test_1000/LoRA-MomA-FixedB.txt",
+
+    # "software/Full.txt",
+    # "software/LoRA.txt",
+    # "software/MoFiLoRA-0.99-2.0.txt",
     # "software/MoFiLoRA-0.9-2.0.txt",
     # "software/MoFiLoRA-0.9-1.0.txt",
     # "software/MoFiLoRA-0.8-0.5.txt",
     # "software/MoFiLoRA-0.99-1.0.txt",
     # "software/MoFiLoRA-0.8-2.0.txt",
 
-    "industrial/FedNCF-Full.txt",
-    "industrial/FedNCF-LoRA.txt",
-    "industrial/MoFiLoRA.txt",
+    # "industrial/FedNCF-Full.txt",
+    # "industrial/FedNCF-LoRA.txt",
+    # "industrial/MoFiLoRA.txt",
     # "industrial/MoFiLoRA-0.9-1.0.txt",
     # "industrial/MoFiLoRA-0.9-0.5.txt",
     # "industrial/MoFiLoRA-0.8-1.0.txt",
@@ -92,14 +117,14 @@ SELECTED_LOG_FILES = [
     # "finetune_1000/heavyball/heavyball_0.99_2.0.txt",
 
     # **************************************AB test 1000********************************
-    # "AB_test_1000/LoRA-FixedA.txt",
-    # "AB_test_1000/LoRA-FixedB.txt",
+    "AB_test_1000/LoRA-FixedA.txt",
+    "AB_test_1000/LoRA-FixedB.txt",
 
-    # "AB_test_1000/LoRA-MomA.txt",
-    # "AB_test_1000/LoRA-MomB.txt",
+    "AB_test_1000/LoRA-MomA.txt",
+    "AB_test_1000/LoRA-MomB.txt",
 
-    # "AB_test_1000/LoRA-MomB-FixedA.txt",
-    # "AB_test_1000/LoRA-MomA-FixedB.txt",
+    "AB_test_1000/LoRA-MomB-FixedA.txt",
+    "AB_test_1000/LoRA-MomA-FixedB.txt",
 
     # "AB_test_1000/LoRA-FixedB.txt",
     # "AB_test_1000/LoRA-MomA.txt",
@@ -315,27 +340,8 @@ def sample_every_n_rounds(x, y, n=10):
     return x[mask], y[mask]
 
 
-def plot_metric(data, x_key, y_key, title, y_label, out_path):
-    plt.figure(figsize=(5, 5))
-    for name, d in data.items():
-        x = d.get(x_key, np.array([]))
-        y = d.get(y_key, np.array([]))
-        if len(x) == 0 or len(y) == 0:
-            continue
-        m = min(len(x), len(y))
-        plt.plot(x[:m], y[:m], linewidth=2, marker="o", markersize=3, label=name)
-
-    # plt.title(title)
-    plt.xlabel("round", fontsize=15)
-    plt.ylabel(y_label, fontsize=15)
-    plt.grid(alpha=0.3)
-    plt.legend(fontsize=15)
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    plt.close()
-
 # def plot_metric(data, x_key, y_key, title, y_label, out_path):
-#     plt.figure(figsize=(8.8, 5.2))
+#     plt.figure(figsize=(5, 5))
 #     for name, d in data.items():
 #         x = d.get(x_key, np.array([]))
 #         y = d.get(y_key, np.array([]))
@@ -344,14 +350,56 @@ def plot_metric(data, x_key, y_key, title, y_label, out_path):
 #         m = min(len(x), len(y))
 #         plt.plot(x[:m], y[:m], linewidth=2, marker="o", markersize=3, label=name)
 
-#     plt.title(title)
-#     plt.xlabel("round")
-#     plt.ylabel(y_label)
+#     plt.xlabel("round", fontsize=15)
+#     plt.ylabel(y_label, fontsize=15)
 #     plt.grid(alpha=0.3)
-#     plt.legend(fontsize=9)
+#     plt.legend(fontsize=15)
 #     plt.tight_layout()
-#     plt.savefig(out_path, dpi=300, bbox_inches="tight")
+#     plt.savefig(out_path, bbox_inches="tight")  # pdf works directly by file suffix
 #     plt.close()
+
+def plot_metric(data, x_key, y_key, title, y_label, out_path):
+    plt.figure(figsize=(4.5, 3.5))
+
+    for name, d in data.items():
+        x = d.get(x_key, np.array([]))
+        y = d.get(y_key, np.array([]))
+
+        if len(x) == 0 or len(y) == 0:
+            continue
+
+        m = min(len(x), len(y))
+
+        plt.plot(
+            x[:m],
+            y[:m],
+            linewidth=2.5,
+            label=name,
+        )
+
+    plt.xlabel("Communication Round", fontsize=16)
+    plt.ylabel(y_label, fontsize=16)
+
+    plt.tick_params(axis="both", labelsize=14)
+
+    plt.grid(
+        True,
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.5,
+    )
+
+    plt.legend(
+        fontsize=13,
+        frameon=False,
+    )
+
+    plt.tight_layout()
+    plt.savefig(out_path, bbox_inches="tight")
+    plt.close()
+
+
+
 
 
 def _safe_name(metric: str) -> str:
@@ -399,7 +447,7 @@ def main():
         y_key="train_losses",
         title="Training Loss",
         y_label="Loss",
-        out_path=FIG_DIR / f"{ts}_loss_comparison.png",
+        out_path=FIG_DIR / f"{ts}_loss_comparison.pdf",
     )
 
     # 2) Selected eval metrics (one figure per metric)
@@ -424,13 +472,13 @@ def main():
             y_key="metric_values",
             title=f"{metric}",
             y_label=metric,
-            out_path=FIG_DIR / f"{ts}_{safe_metric}_comparison.png",
+            out_path=FIG_DIR / f"{ts}_{safe_metric}_comparison.pdf",
         )
 
     print(f"Saved to: {FIG_DIR}")
-    print(f"- {ts}_loss_comparison.png")
+    print(f"- {ts}_loss_comparison.pdf")
     for metric in SELECTED_METRICS:
-        print(f"- {ts}_{_safe_name(metric)}_comparison.png")
+        print(f"- {ts}_{_safe_name(metric)}_comparison.pdf")
 
 
 if __name__ == "__main__":

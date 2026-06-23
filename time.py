@@ -5,24 +5,65 @@ import csv
 
 # ===== Config =====
 LOG_FILES = [
-    Path("log/baseline_1000/FedNCF-Full.txt"),
-    Path("log/baseline_1000/FedNCF-LoRA.txt"),
-    Path("log/baseline_1000/MoFiLoRA.txt"),
-    Path("log/AB_test_1000/LoRA-MomA.txt"),
-    Path("log/AB_test_1000/LoRA-MomB.txt"),
-    Path("log/AB_test_1000/LoRA-FixedA.txt"),
-    Path("log/AB_test_1000/LoRA-FixedB.txt"),
-    Path("log/AB_test_1000/LoRA-MomB-FixedA.txt"),
-    Path("log/AB_test_1000/LoRA-MomA-FixedB.txt"),
 
-    # Path("log/industrial/FedNCF-Full.txt"),
-    # Path("log/industrial/FedNCF-LoRA.txt"),
-    # Path("log/industrial/MoFiLoRA.txt"), #-0.9-0.5
+    Path("log/software/Full.txt"),
+    Path("log/software/LoRA.txt"),
+    Path("log/software/MofiLoRA-0.8-0.5.txt"),
+    Path("log/software/MofiLoRA-0.8-2.0.txt"),
+    Path("log/software/MofiLoRA-0.9-1.0.txt"),
+    Path("log/software/MofiLoRA-0.9-2.0.txt"),
+    Path("log/software/MofiLoRA-0.99-1.0.txt"),
+    Path("log/software/MofiLoRA-0.99-2.0.txt"),
 
-    # Path("log/software/FedNCF-Full.txt"),
-    # Path("log/software/FedNCF-LoRA.txt"),
-    # Path("log/software/MoFiLoRA.txt"), #-0.9-2.0
 
+    # Path("log/finetune_1000/heavyball/beta=0.9, ηs=0.5.txt"),
+    # Path("log/finetune_1000/heavyball/beta=0.9, ηs=1.0.txt"),
+    # Path("log/finetune_1000/heavyball/beta=0.9, ηs=2.0.txt"),
+    # Path("log/finetune_1000/heavyball/beta=0.8, ηs=1.0.txt"),
+    # Path("log/finetune_1000/heavyball/beta=0.9, ηs=1.0.txt"),
+    # Path("log/finetune_1000/heavyball/beta=0.99, ηs=1.0.txt"),
+    # Path("log/finetune_1000/heavyball/beta=0.99, ηs=2.0.txt"),
+
+    # Path("log/multi_seed/Industrial/Industrial_Full_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_Full_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_Full_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_Full_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_Full_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedA_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedA_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedA_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedA_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedA_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedB_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedB_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedB_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedB_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_FixedB_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_FixedA_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_FixedA_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_FixedA_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_FixedA_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomB_FixedA_2028.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_FixedB_2024.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_FixedB_2025.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_FixedB_2026.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_FixedB_2027.txt"),
+    # Path("log/multi_seed/Industrial/Industrial_LoRA_MomA_FixedB_2028.txt"),
 ]
 START_ROUND = 20
 END_ROUND = 999
@@ -329,9 +370,9 @@ def main():
 
         # raw (baseline rows) or improvement-vs-LoRA (non-baseline rows)
         if _is_baseline_method(method) or lora_row is None:
-            loss_std_txt = _fmt(r["Loss Delta Stability (Std)"], 4)
-            hr_std_txt = _fmt(r["HR Delta Stability (Std)"], 4)
-            ndcg_std_txt = _fmt(r["NDCG Delta Stability (Std)"], 4)
+            loss_std_txt = _fmt(r["Loss Delta Stability (Std)"], 8)
+            hr_std_txt = _fmt(r["HR Delta Stability (Std)"], 8)
+            ndcg_std_txt = _fmt(r["NDCG Delta Stability (Std)"], 8)
 
             hr10_txt = _fmt(r["HR@10"], 4)
             ndcg10_txt = _fmt(r["NDCG@10"], 4)
@@ -344,9 +385,9 @@ def main():
             agg_txt = _fmt(r["Aggregation Time"], 4)
         else:
             # stability/time: lower is better
-            loss_std_txt = _fmt_with_improve(r["Loss Delta Stability (Std)"], lora_row["Loss Delta Stability (Std)"], higher_better=False, nd=4)
-            hr_std_txt = _fmt_with_improve(r["HR Delta Stability (Std)"], lora_row["HR Delta Stability (Std)"], higher_better=False, nd=4)
-            ndcg_std_txt = _fmt_with_improve(r["NDCG Delta Stability (Std)"], lora_row["NDCG Delta Stability (Std)"], higher_better=False, nd=4)
+            loss_std_txt = _fmt_with_improve(r["Loss Delta Stability (Std)"], lora_row["Loss Delta Stability (Std)"], higher_better=False, nd=8)
+            hr_std_txt = _fmt_with_improve(r["HR Delta Stability (Std)"], lora_row["HR Delta Stability (Std)"], higher_better=False, nd=8)
+            ndcg_std_txt = _fmt_with_improve(r["NDCG Delta Stability (Std)"], lora_row["NDCG Delta Stability (Std)"], higher_better=False, nd=8)
 
             # accuracy: higher is better
             hr10_txt = _fmt_with_improve(r["HR@10"], lora_row["HR@10"], higher_better=True, nd=4)

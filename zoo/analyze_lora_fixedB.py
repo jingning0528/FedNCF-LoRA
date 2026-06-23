@@ -409,7 +409,7 @@ class Server(ServerBase):
         return val_logs
 
 
-class Analyze_Lora_FixedB:
+class Analyze_LoRA_FixedB:
     def __init__(self, 
                  dataload: BaseDataLoaderFL,
                  clients_num_per_turn, 
