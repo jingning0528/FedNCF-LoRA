@@ -16,6 +16,11 @@ FIG_DIR = REPO_ROOT / "figures"
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
 
+
+    #########################################DoRA########################################
+    "DoRA/DoRA.txt",
+    
+    #########################################Paper########################################
     # "software/Full.txt",
     # "software/LoRA.txt",
     # "software/LoRA-FixedB.txt",
@@ -28,8 +33,8 @@ SELECTED_LOG_FILES = [
 
     "baseline_1000/Full.txt",
     "baseline_1000/LoRA.txt",
-    # "AB_test_1000/LoRA-FixedB.txt",
-    # "baseline_1000/MoFiLoRA.txt",
+    "AB_test_1000/LoRA-FixedB.txt",
+    "baseline_1000/MoFiLoRA.txt",
 
     # "baseline_1000/Full.txt",
     # "baseline_1000/LoRA.txt",
@@ -117,14 +122,14 @@ SELECTED_LOG_FILES = [
     # "finetune_1000/heavyball/heavyball_0.99_2.0.txt",
 
     # **************************************AB test 1000********************************
-    "AB_test_1000/LoRA-FixedA.txt",
-    "AB_test_1000/LoRA-FixedB.txt",
+    # "AB_test_1000/LoRA-FixedA.txt",
+    # "AB_test_1000/LoRA-FixedB.txt",
 
-    "AB_test_1000/LoRA-MomA.txt",
-    "AB_test_1000/LoRA-MomB.txt",
+    # "AB_test_1000/LoRA-MomA.txt",
+    # "AB_test_1000/LoRA-MomB.txt",
 
-    "AB_test_1000/LoRA-MomB-FixedA.txt",
-    "AB_test_1000/LoRA-MomA-FixedB.txt",
+    # "AB_test_1000/LoRA-MomB-FixedA.txt",
+    # "AB_test_1000/LoRA-MomA-FixedB.txt",
 
     # "AB_test_1000/LoRA-FixedB.txt",
     # "AB_test_1000/LoRA-MomA.txt",

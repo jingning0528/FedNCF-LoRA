@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
@@ -13,20 +13,65 @@ Outputs:
 
 Optional with --use-meta:
 6. meta_processed/t5/{field}.pth
-
-python data_pre_process/pre_process_amazon.py \                                  
-  --amazon-path ./data/Amazon/ \
-  --categories Software Industrial_and_Scientific \
-  --use-meta \
-  --model sentence-transformers/all-mpnet-base-v2
-
-
 """
 
 import os
 import argparse
 import torch
 import pandas as pd
+
+
+def _strip_review_suffix(field: str) -> str:
+    return field[:-2] if field.endswith("_5") else field
+
+
+def _resolve_review_file(review_path: str, field: str) -> tuple[str, str]:
+    # Supports both:
+    # - Software_5.json
+    # - Musical_Instruments_5.json
+    # and also if user passes field with _5 suffix
+    base = _strip_review_suffix(field)
+    candidates = [
+        f"{field}.json",
+        f"{field}_5.json",
+        f"{base}.json",
+        f"{base}_5.json",
+    ]
+    seen = set()
+    for name in candidates:
+        if name in seen:
+            continue
+        seen.add(name)
+        p = os.path.join(review_path, name)
+        if os.path.exists(p):
+            return p, base
+    raise FileNotFoundError(
+        f"No review file found for '{field}'. Tried: {candidates} under {review_path}"
+    )
+
+
+def _resolve_meta_file(meta_path: str, field: str) -> str:
+    # Supports:
+    # - meta_Musical_Instruments.json
+    # - Musical_Instruments.json
+    base = _strip_review_suffix(field)
+    candidates = [
+        f"meta_{field}.json",
+        f"meta_{base}.json",
+        f"{field}.json",
+        f"{base}.json",
+    ]
+    seen = set()
+    for name in candidates:
+        if name in seen:
+            continue
+        seen.add(name)
+        p = os.path.join(meta_path, name)
+        if os.path.exists(p):
+            return p
+    raise FileNotFoundError(
+        f"No meta file found for '{field}'. Tried: {candidates} under {meta_path}"
+    )
 
 
 def pre_process_review(field: str, review_path: str, review_path_clip: str, graph_path: str):
@@ -37,8 +82,7 @@ def pre_process_review(field: str, review_path: str, review_path_clip: str, grap
     items_inter = {}
     review_data_fl = {}
 
-    review_file = os.path.join(review_path, field + "_5.json")
-
+    review_file, out_field = _resolve_review_file(review_path, field)
     print(f"Processing reviews: {review_file}")
 
     for _, review in pd.read_json(review_file, orient="records", lines=True).iterrows():
@@ -68,28 +112,28 @@ def pre_process_review(field: str, review_path: str, review_path_clip: str, grap
             "asin": item_idx,
             "overall": float(review["overall"]),
         }
-
         review_data_fl[user_idx].append(review_dict)
 
-    torch.save(users_inter, os.path.join(graph_path, field + "_user.pth"))
-    torch.save(items_inter, os.path.join(graph_path, field + "_item.pth"))
-    torch.save(review_data_fl, os.path.join(review_path_clip, field + "_fl.pth"))
+    torch.save(users_inter, os.path.join(graph_path, out_field + "_user.pth"))
+    torch.save(items_inter, os.path.join(graph_path, out_field + "_item.pth"))
+    torch.save(review_data_fl, os.path.join(review_path_clip, out_field + "_fl.pth"))
 
     pd.DataFrame({"reviewerID": users}).to_csv(
-        os.path.join(review_path_clip, field + "_user.csv"), index=False
+        os.path.join(review_path_clip, out_field + "_user.csv"), index=False
     )
     pd.DataFrame({"asin": items}).to_csv(
-        os.path.join(review_path_clip, field + "_item.csv"), index=False
+        os.path.join(review_path_clip, out_field + "_item.csv"), index=False
     )
 
-    print(f"{field}: users={len(users)}, items={len(items)}")
-    print(f"Saved interaction files for {field}")
+    print(f"{out_field}: users={len(users)}, items={len(items)}")
+    print(f"Saved interaction files for {out_field}")
 
-    return items
+    return out_field, items
 
 
 def pre_process_meta(field: str, items, meta_path: str, meta_path_clip: str, model):
-    meta_file = os.path.join(meta_path, "meta_" + field + ".json")
+    meta_file = _resolve_meta_file(meta_path, field)
+    out_field = _strip_review_suffix(field)
 
     print(f"Processing metadata: {meta_file}")
 
@@ -98,12 +142,10 @@ def pre_process_meta(field: str, items, meta_path: str, meta_path_clip: str, mod
 
     for _, asin_data in pd.read_json(meta_file, orient="records", lines=True).iterrows():
         asin = asin_data.get("asin", None)
-
         if asin not in item_to_idx:
             continue
 
         meta_prompt = "A product"
-
         for attr in ["title", "description", "categories", "brand", "feature"]:
             if attr in asin_data and not isinstance(asin_data[attr], float):
                 value = asin_data[attr]
@@ -112,18 +154,14 @@ def pre_process_meta(field: str, items, meta_path: str, meta_path_clip: str, mod
                 if isinstance(value, str) and len(value.strip()) == 0:
                     continue
                 meta_prompt += ", with " + attr + ": " + str(value)
-
         meta_prompt += "."
-
         meta_input[item_to_idx[asin]] = meta_prompt
 
     embedding = model.encode(meta_input, convert_to_tensor=True, show_progress_bar=True)
+    print(f"{out_field} metadata embedding shape: {embedding.shape}")
 
-    print(f"{field} metadata embedding shape: {embedding.shape}")
-
-    torch.save(embedding, os.path.join(meta_path_clip, field + ".pth"))
-
-    print(f"Saved metadata embedding for {field}")
+    torch.save(embedding, os.path.join(meta_path_clip, out_field + ".pth"))
+    print(f"Saved metadata embedding for {out_field}")
 
 
 if __name__ == "__main__":
@@ -139,8 +177,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--categories",
         nargs="+",
-        default=["Software", "Industrial_and_Scientific"],
-        help="Amazon categories to preprocess",
+        default=["Software", "Industrial_and_Scientific", "Musical_Instruments"],
+        help="Amazon categories (e.g., Software Industrial_and_Scientific Musical_Instruments)",
     )
 
     parser.add_argument(
@@ -169,18 +207,16 @@ if __name__ == "__main__":
     os.makedirs(meta_path_clip, exist_ok=True)
 
     model = None
-
     if args.use_meta:
         from sentence_transformers import SentenceTransformer
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print("Using device:", device)
         print("Using SentenceTransformer:", args.model)
-
         model = SentenceTransformer(args.model, device=device)
 
     for field in args.categories:
-        items = pre_process_review(
+        out_field, items = pre_process_review(
             field=field,
             review_path=review_path,
             review_path_clip=review_path_clip,
@@ -189,7 +225,7 @@ if __name__ == "__main__":
 
         if args.use_meta:
             pre_process_meta(
-                field=field,
+                field=out_field,
                 items=items,
                 meta_path=meta_path,
                 meta_path_clip=meta_path_clip,

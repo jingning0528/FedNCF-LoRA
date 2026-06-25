@@ -6,15 +6,19 @@ import csv
 # ===== Config =====
 LOG_FILES = [
 
-    Path("log/software/Full.txt"),
-    Path("log/software/LoRA.txt"),
-    Path("log/software/MofiLoRA-0.8-0.5.txt"),
-    Path("log/software/MofiLoRA-0.8-2.0.txt"),
-    Path("log/software/MofiLoRA-0.9-1.0.txt"),
-    Path("log/software/MofiLoRA-0.9-2.0.txt"),
-    Path("log/software/MofiLoRA-0.99-1.0.txt"),
-    Path("log/software/MofiLoRA-0.99-2.0.txt"),
+    # Path("log/industrial/Full.txt"),
+    # Path("log/industrial/LoRA.txt"),
+    # Path("log/industrial/MofiLoRA-0.9-1.0.txt"),
+    # Path("log/industrial/MofiLoRA.txt"),
 
+    # Path("log/software/Full.txt"),
+    # Path("log/software/LoRA.txt"),
+    # Path("log/software/MofiLoRA-0.8-0.5.txt"),
+    # Path("log/software/MofiLoRA-0.8-2.0.txt"),
+    # Path("log/software/MofiLoRA-0.9-1.0.txt"),
+    # Path("log/software/MofiLoRA.txt"),
+    # Path("log/software/MofiLoRA-0.99-1.0.txt"),
+    # Path("log/software/MofiLoRA-0.99-2.0.txt"),
 
     # Path("log/finetune_1000/heavyball/beta=0.9, ηs=0.5.txt"),
     # Path("log/finetune_1000/heavyball/beta=0.9, ηs=1.0.txt"),
@@ -22,6 +26,7 @@ LOG_FILES = [
     # Path("log/finetune_1000/heavyball/beta=0.8, ηs=1.0.txt"),
     # Path("log/finetune_1000/heavyball/beta=0.9, ηs=1.0.txt"),
     # Path("log/finetune_1000/heavyball/beta=0.99, ηs=1.0.txt"),
+
     # Path("log/finetune_1000/heavyball/beta=0.99, ηs=2.0.txt"),
 
     # Path("log/multi_seed/Industrial/Industrial_Full_2024.txt"),

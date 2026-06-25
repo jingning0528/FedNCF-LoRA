@@ -38,3 +38,5 @@ Analyze_LoRA_MomA_FixedB = _resolve(
     "analyze_lora_momA_fixedB",
     ["Analyze_LoRA_MomA_FixedB", "Analyze_Lora_MomA_FixedB"]
 )
+
+DoRA = _resolve("dora", ["DoRA", "Dora"])
