@@ -25,14 +25,14 @@ Amazon_industrial_t5:
 
 
 Amazon_instrument_t5:
-  data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/
-  meta_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/
-  model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Musical_Instruments/
-  path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Musical_Instruments
-  # data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/
-  # meta_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/meta_processed/t5/
-  # model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/model/t5/Musical_Instruments/
-  # path: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/graph/Musical_Instruments
+  # data_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/
+  # meta_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/meta_processed/t5/
+  # model_dir: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/model/t5/Musical_Instruments/
+  # path: /Users/jing/Documents/20260109/Experiments/FedPEFT-main/data/Amazon/graph/Musical_Instruments
+  data_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/
+  meta_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/meta_processed/t5/
+  model_dir: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/model/t5/Musical_Instruments/
+  path: /content/drive/MyDrive/FedNCF-LoRA/data/Amazon/graph/Musical_Instruments
   field: Musical_Instruments
   sen_embedding_dim: 768
   user_num: 27530

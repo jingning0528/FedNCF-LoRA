@@ -61,7 +61,7 @@ Instrument:
     # **Instrument**
     dataset_id: Amazon_instrument_t5
     dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 180
+    clients_num_per_turn: 1062
     ## **Compressed embedding**
     # **LoRA**
     latent_dim: 4
@@ -127,11 +127,11 @@ Industrial:
     # **industrial**
     dataset_id: Amazon_industrial_t5
     dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 530
+    clients_num_per_turn: 1104
     ## **Compressed embedding**
     # **LoRA**
     latent_dim: 4
-    model: Lora_MomA_FixedB      
+    model: LoRA_MomA_FixedB      
     beta: 0.9           
     eta_s: 0.5          
     server_optimizer: heavyball
