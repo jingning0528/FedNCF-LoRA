@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 # ===== Editable defaults (change here in code) =====
-DEFAULT_INPUT_CSV = Path("csv/Industrial_All_Result.csv")
+DEFAULT_INPUT_CSV = Path("csv/baseline_1000_summary.csv")
 DEFAULT_DATASET = "Industrial"               # e.g., "ML1M", "Industrial", "Software", or None
 DEFAULT_OUTPUT_DIR = Path("csv/")
 DEFAULT_OUTPUT_FILENAME = None          # e.g., "ML1M.csv"; if None -> "{dataset}.csv"

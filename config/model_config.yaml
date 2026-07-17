@@ -61,7 +61,7 @@ Instrument:
     # **Instrument**
     dataset_id: Amazon_instrument_t5
     dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 1062
+    clients_num_per_turn: 2753
     ## **Compressed embedding**
     # **LoRA**
     latent_dim: 4
@@ -95,11 +95,11 @@ Software:
     # **software**
     dataset_id: Amazon_software_t5
     dataloader: AmazonDataLoaderFL
-    clients_num_per_turn: 180
+    clients_num_per_turn: 1826
     ## **Compressed embedding**
     # **LoRA**
     latent_dim: 4
-    model: Lora_MomA_FixedB    
+    model: LoRA_MomA_FixedB    
     beta: 0.9           
     eta_s: 1.0          
     server_optimizer: heavyball
@@ -133,7 +133,7 @@ Industrial:
     latent_dim: 4
     model: LoRA_MomA_FixedB      
     beta: 0.9           
-    eta_s: 0.5          
+    eta_s: 1.0          
     server_optimizer: heavyball
 
 # ************************************ ML-1M *******************************************

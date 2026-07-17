@@ -486,6 +486,3 @@ class DoRA:
         logging.info(f"[Time] total_fit_time={time.perf_counter() - fit_start:.4f}s")
         return results
 
-
-# Optional alias: keep this if your framework still imports `LoRA` by class name.
-LoRA = DoRA

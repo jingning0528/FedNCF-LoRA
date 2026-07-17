@@ -16,10 +16,28 @@ FIG_DIR = REPO_ROOT / "figures"
 # Set log file names here (1 to 10 files)
 SELECTED_LOG_FILES = [
 
+    #########################################Instrument########################################
+    "Industrial/Full.txt",
+    "Industrial/LoRA.txt",
+    "Industrial/LoRA-FixedB.txt",
+    "Industrial/MoFiLoRA.txt",
+    
+    # "instrument/LoRA.txt",
+    # "instrument/MoFiLoRA.txt",
+    # "software_1800/MoFiLoRA_1800.txt",
+    # "multi_seed/Instrument/Instrument_Full_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_FixedA_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_FixedB_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_MomA_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_MomB_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_MomB_FixedA_2024.txt",
+    # "multi_seed/Instrument/Instrument_LoRA_MomA_FixedB_2024.txt",
+
 
     #########################################DoRA########################################
-    "DoRA/DoRA.txt",
-    
+    # "DoRA/DoRA.txt",
+
     #########################################Paper########################################
     # "software/Full.txt",
     # "software/LoRA.txt",
@@ -30,11 +48,19 @@ SELECTED_LOG_FILES = [
     # "industrial/LoRA.txt",
     # "industrial/LoRA-FixedB.txt",
     # "industrial/MofiLoRA.txt",
+    # "industrial/MofiLoRA_2.txt",
+    # "industrial/MoFiLoRA-0.9-1.0.txt",
+    # "industrial/MoFiLoRA-0.8-1.0.txt",
 
-    "baseline_1000/Full.txt",
-    "baseline_1000/LoRA.txt",
-    "AB_test_1000/LoRA-FixedB.txt",
-    "baseline_1000/MoFiLoRA.txt",
+    # "baseline_2000/Full.txt",
+    # "baseline_2000/LoRA.txt",
+    # "baseline_2000/LoRA-FixedB.txt",
+    # "baseline_2000/MoFiLoRA.txt",
+
+    # "baseline_1000/Full.txt",
+    # "baseline_1000/LoRA.txt",
+    # "AB_test_1000/LoRA-FixedB.txt",
+    # "baseline_1000/MoFiLoRA.txt",
 
     # "baseline_1000/Full.txt",
     # "baseline_1000/LoRA.txt",
@@ -48,6 +74,7 @@ SELECTED_LOG_FILES = [
 
     # "software/Full.txt",
     # "software/LoRA.txt",
+    # "software/MoFiLoRA.txt",
     # "software/MoFiLoRA-0.99-2.0.txt",
     # "software/MoFiLoRA-0.9-2.0.txt",
     # "software/MoFiLoRA-0.9-1.0.txt",

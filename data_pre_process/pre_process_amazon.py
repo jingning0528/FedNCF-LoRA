@@ -177,8 +177,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--categories",
         nargs="+",
-        default=["Software", "Industrial_and_Scientific", "Musical_Instruments"],
-        help="Amazon categories (e.g., Software Industrial_and_Scientific Musical_Instruments)",
+        default=["Software", "Industrial_and_Scientific", "Musical_Instruments", "Digital_Music"],
+        help="Amazon categories (e.g., Software Industrial_and_Scientific Musical_Instruments Digital_Music)",
     )
 
     parser.add_argument(
